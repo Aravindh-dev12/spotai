@@ -1,0 +1,9 @@
+{
+  "expo": {
+    "name": "FORM",
+    "slug": "form",
+    "scheme": "form",
+    "plugins": ["expo-router"],
+    "experiments": { "typedRoutes": true }
+  }
+}
