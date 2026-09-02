@@ -23,14 +23,10 @@ import {
   getFormState,
   createCrew
 } from '@form/db';
+import { registerMvpRoutes, authenticatedUserId } from './routes/mvp.js';
 
-const app = Fastify({ logger: true });
+const app = Fastify({ logger: true, bodyLimit: 1_000_000 });
 const ai = new StubAiGateway();
-
-function requireUserId(request: { headers: Record<string, unknown> }) {
-  const value = request.headers['x-user-id'];
-  return typeof value === 'string' && z.string().uuid().safeParse(value).success ? value : null;
-}
 
 async function recompute(userId: string, seasonId: string) {
   const classifications = await listActiveClassifications(userId, seasonId);
@@ -60,7 +56,7 @@ app.post('/v1/dev/users', async (request, reply) => {
 });
 
 app.post('/v1/seasons', async (request, reply) => {
-  const userId = requireUserId(request);
+  const userId = await authenticatedUserId(request);
   if (!userId) return reply.code(401).send({ error: 'user_required' });
   const parsed = z.object({ label: z.string().min(1).max(40), days: z.number().int().min(7).max(45).default(30) }).safeParse(request.body);
   if (!parsed.success) return reply.code(400).send({ error: 'invalid_season', details: parsed.error.flatten() });
@@ -70,7 +66,7 @@ app.post('/v1/seasons', async (request, reply) => {
 });
 
 app.post('/v1/life-modes', async (request, reply) => {
-  const userId = requireUserId(request);
+  const userId = await authenticatedUserId(request);
   if (!userId) return reply.code(401).send({ error: 'user_required' });
   const parsed = z.object({
     seasonId: z.string().uuid(),
@@ -92,7 +88,7 @@ app.post('/v1/life-modes', async (request, reply) => {
 });
 
 app.post('/v1/life-signals', async (request, reply) => {
-  const userId = requireUserId(request);
+  const userId = await authenticatedUserId(request);
   if (!userId) return reply.code(401).send({ error: 'user_required' });
   const body = z.object({
     seasonId: z.string().uuid(),
@@ -121,7 +117,7 @@ app.post('/v1/life-signals', async (request, reply) => {
 });
 
 app.delete('/v1/life-signals/:id', async (request, reply) => {
-  const userId = requireUserId(request);
+  const userId = await authenticatedUserId(request);
   if (!userId) return reply.code(401).send({ error: 'user_required' });
   const params = z.object({ id: z.string().uuid() }).safeParse(request.params);
   const query = z.object({ seasonId: z.string().uuid() }).safeParse(request.query);
@@ -132,7 +128,7 @@ app.delete('/v1/life-signals/:id', async (request, reply) => {
 });
 
 app.get('/v1/form', async (request, reply) => {
-  const userId = requireUserId(request);
+  const userId = await authenticatedUserId(request);
   if (!userId) return reply.code(401).send({ error: 'user_required' });
   const query = z.object({ seasonId: z.string().uuid() }).safeParse(request.query);
   if (!query.success) return reply.code(400).send({ error: 'season_id_required' });
@@ -142,7 +138,7 @@ app.get('/v1/form', async (request, reply) => {
 });
 
 app.post('/v1/crews', async (request, reply) => {
-  const userId = requireUserId(request);
+  const userId = await authenticatedUserId(request);
   if (!userId) return reply.code(401).send({ error: 'user_required' });
   const parsed = z.object({ name: z.string().min(1).max(50).optional() }).safeParse(request.body ?? {});
   if (!parsed.success) return reply.code(400).send({ error: 'invalid_crew' });
@@ -156,6 +152,8 @@ app.post('/v1/life-signals/preview', async (request, reply) => {
   const traits = applySignal(newTraitVector(), classification);
   return { classification, preview: { traits, awakeningProgress: awakeningProgress(traits), archetype: resolveForm(traits) } };
 });
+
+await registerMvpRoutes(app);
 
 const port = Number(process.env.API_PORT ?? 3000);
 await app.listen({ port, host: '0.0.0.0' });
