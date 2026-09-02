@@ -26,7 +26,16 @@ export class StubAiGateway implements AiGateway {
       rationale: 'Development stub only; replace with a reviewed classifier adapter.'
     };
   }
-  async generateLifeModeLabel(): Promise<string> { return 'EXPAND'; }
-  async generateSeasonNarrative(): Promise<string> { return 'Your season changed through the moments you chose to count.'; }
-  async createFormReveal(): Promise<CreativeResult> { return { assetId: crypto.randomUUID(), status: 'queued' }; }
+
+  async generateLifeModeLabel(_input: { wantsMore: string[]; wantsLess: string[]; desiredFeeling?: string }): Promise<string> {
+    return 'EXPAND';
+  }
+
+  async generateSeasonNarrative(_input: { traits: TraitVector; evidenceSummaries: string[] }): Promise<string> {
+    return 'Your season changed through the moments you chose to count.';
+  }
+
+  async createFormReveal(_input: CreativeRequest): Promise<CreativeResult> {
+    return { assetId: crypto.randomUUID(), status: 'queued' };
+  }
 }
