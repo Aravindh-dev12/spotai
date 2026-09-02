@@ -14,6 +14,8 @@ import {
   listCrewMembers,
   createMediaAsset,
   markMediaReady,
+  approveMediaConsent,
+  mediaConsentSatisfied,
   getMediaAsset,
   createRevealJob,
   getRevealJob,
@@ -28,9 +30,7 @@ const jobs = new Queue('form-jobs', { connection: redis });
 
 export async function authenticatedUserId(request: FastifyRequest) {
   const authorization = request.headers.authorization;
-  if (authorization?.startsWith('Bearer ')) {
-    return resolveSession(authorization.slice(7));
-  }
+  if (authorization?.startsWith('Bearer ')) return resolveSession(authorization.slice(7));
   if (process.env.NODE_ENV !== 'production') {
     const legacy = request.headers['x-user-id'];
     return typeof legacy === 'string' && z.string().uuid().safeParse(legacy).success ? legacy : null;
@@ -50,10 +50,7 @@ function isAdult(birthDate: string) {
 
 export async function registerMvpRoutes(app: FastifyInstance) {
   app.post('/v1/auth/guest', async (request, reply) => {
-    const parsed = z.object({
-      handle: z.string().min(2).max(30).regex(/^[a-zA-Z0-9_.]+$/).optional(),
-      birthDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/)
-    }).safeParse(request.body);
+    const parsed = z.object({ handle: z.string().min(2).max(30).regex(/^[a-zA-Z0-9_.]+$/).optional(), birthDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }).safeParse(request.body);
     if (!parsed.success) return reply.code(400).send({ error: 'invalid_signup', details: parsed.error.flatten() });
     if (!isAdult(parsed.data.birthDate)) return reply.code(403).send({ error: 'adult_only' });
     try {
@@ -90,9 +87,8 @@ export async function registerMvpRoutes(app: FastifyInstance) {
     if (!userId) return reply.code(401).send({ error: 'unauthorized' });
     const parsed = z.object({ id: z.string().uuid() }).safeParse(request.params);
     if (!parsed.success) return reply.code(400).send({ error: 'invalid_crew' });
-    try {
-      return { members: await listCrewMembers(userId, parsed.data.id) };
-    } catch (error) {
+    try { return { members: await listCrewMembers(userId, parsed.data.id) }; }
+    catch (error) {
       if (String(error).includes('crew_forbidden')) return reply.code(403).send({ error: 'crew_forbidden' });
       throw error;
     }
@@ -108,6 +104,7 @@ export async function registerMvpRoutes(app: FastifyInstance) {
       return reply.code(201).send({ ...invite, deepLink: `spotai://join?token=${encodeURIComponent(invite.token)}` });
     } catch (error) {
       if (String(error).includes('crew_forbidden')) return reply.code(403).send({ error: 'crew_forbidden' });
+      if (String(error).includes('crew_full')) return reply.code(409).send({ error: 'crew_full' });
       throw error;
     }
   });
@@ -123,6 +120,7 @@ export async function registerMvpRoutes(app: FastifyInstance) {
       return joined;
     } catch (error) {
       if (String(error).includes('invite_invalid')) return reply.code(410).send({ error: 'invite_expired_or_used' });
+      if (String(error).includes('crew_full')) return reply.code(409).send({ error: 'crew_full' });
       throw error;
     }
   });
@@ -133,7 +131,7 @@ export async function registerMvpRoutes(app: FastifyInstance) {
     const parsed = z.object({
       contentType: z.enum(['image/jpeg','image/png','image/webp','video/mp4']),
       purpose: z.enum(['life_signal','form_reveal','memory','crew']),
-      participantUserIds: z.array(z.string().uuid()).max(5).default([])
+      participantUserIds: z.array(z.string().uuid()).max(4).default([])
     }).safeParse(request.body);
     if (!parsed.success) return reply.code(400).send({ error: 'invalid_media_intent', details: parsed.error.flatten() });
     const extension = parsed.data.contentType === 'image/jpeg' ? 'jpg' : parsed.data.contentType.split('/')[1];
@@ -142,6 +140,7 @@ export async function registerMvpRoutes(app: FastifyInstance) {
       ownerUserId: userId,
       objectKey,
       mediaType: parsed.data.contentType,
+      purpose: parsed.data.purpose,
       consentScope: { purpose: parsed.data.purpose, participantUserIds: parsed.data.participantUserIds, ownerApproved: true }
     });
     const signed = await createSignedUpload({ objectKey, contentType: parsed.data.contentType });
@@ -154,10 +153,21 @@ export async function registerMvpRoutes(app: FastifyInstance) {
     const params = z.object({ id: z.string().uuid() }).safeParse(request.params);
     const body = z.object({ byteSize: z.number().int().positive().max(250_000_000).optional() }).safeParse(request.body ?? {});
     if (!params.success || !body.success) return reply.code(400).send({ error: 'invalid_media' });
-    try {
-      return await markMediaReady(userId, params.data.id, body.data.byteSize);
-    } catch (error) {
+    try { return await markMediaReady(userId, params.data.id, body.data.byteSize); }
+    catch (error) {
       if (String(error).includes('media_not_found')) return reply.code(404).send({ error: 'media_not_found' });
+      throw error;
+    }
+  });
+
+  app.post('/v1/media/:id/consent', async (request, reply) => {
+    const userId = await authenticatedUserId(request);
+    if (!userId) return reply.code(401).send({ error: 'unauthorized' });
+    const params = z.object({ id: z.string().uuid() }).safeParse(request.params);
+    if (!params.success) return reply.code(400).send({ error: 'invalid_media' });
+    try { return await approveMediaConsent(userId, params.data.id); }
+    catch (error) {
+      if (String(error).includes('consent_not_found')) return reply.code(404).send({ error: 'consent_not_found' });
       throw error;
     }
   });
@@ -169,7 +179,7 @@ export async function registerMvpRoutes(app: FastifyInstance) {
     if (!params.success) return reply.code(400).send({ error: 'invalid_media' });
     const media = await getMediaAsset(userId, params.data.id);
     if (!media || media.status !== 'ready') return reply.code(404).send({ error: 'media_not_ready' });
-    return { url: await createSignedDownload(media.objectKey) };
+    return { url: await createSignedDownload(String(media.objectKey)) };
   });
 
   app.post('/v1/reveals', async (request, reply) => {
@@ -179,10 +189,12 @@ export async function registerMvpRoutes(app: FastifyInstance) {
     if (!parsed.success) return reply.code(400).send({ error: 'invalid_reveal' });
     const media = await getMediaAsset(userId, parsed.data.sourceMediaId);
     if (!media || media.status !== 'ready') return reply.code(409).send({ error: 'source_media_not_ready' });
+    if (!(await mediaConsentSatisfied(parsed.data.sourceMediaId))) return reply.code(409).send({ error: 'participant_consent_required' });
     const form = await getFormState(userId, parsed.data.seasonId);
-    const reveal = await createRevealJob({ userId, seasonId: parsed.data.seasonId, sourceMediaId: parsed.data.sourceMediaId, archetype: form?.archetype ?? null });
+    if (!form?.archetype) return reply.code(409).send({ error: 'form_not_awakened' });
+    const reveal = await createRevealJob({ userId, seasonId: parsed.data.seasonId, sourceMediaId: parsed.data.sourceMediaId, archetype: form.archetype });
     await jobs.add('form-reveal', { revealId: reveal.id, userId, seasonId: parsed.data.seasonId, sourceMediaId: parsed.data.sourceMediaId, archetype: reveal.archetype }, { attempts: 3, backoff: { type: 'exponential', delay: 1500 }, removeOnComplete: 1000, removeOnFail: 1000 });
-    await trackEvent(userId, 'form_reveal_requested', { seasonId: parsed.data.seasonId, awakened: Boolean(reveal.archetype) });
+    await trackEvent(userId, 'form_reveal_requested', { seasonId: parsed.data.seasonId, archetype: reveal.archetype });
     return reply.code(202).send(reveal);
   });
 
