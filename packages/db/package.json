@@ -5,6 +5,6 @@
   "type": "module",
   "exports": "./src/index.ts",
   "scripts": { "schema:print": "cat schema.sql", "typecheck": "tsc --noEmit -p tsconfig.json" },
-  "dependencies": { "@form/domain": "workspace:*", "pg": "^8.13.0" },
-  "devDependencies": { "@types/pg": "^8.11.10", "typescript": "^5.9.0" }
+  "dependencies": { "@form/domain": "workspace:*", "mysql2": "^3.14.0" },
+  "devDependencies": { "typescript": "^5.9.0" }
 }
