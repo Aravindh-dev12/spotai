@@ -82,8 +82,15 @@ app.post('/v1/life-modes', async (request, reply) => {
     desiredFeeling: z.string().max(40).optional()
   }).safeParse(request.body);
   if (!parsed.success) return reply.code(400).send({ error: 'invalid_life_mode', details: parsed.error.flatten() });
-  const label = await ai.generateLifeModeLabel(parsed.data);
-  const mode = await createLifeMode({ userId, seasonId: parsed.data.seasonId, label, ...parsed.data });
+  const label = await ai.generateLifeModeLabel({ wantsMore: parsed.data.wantsMore, wantsLess: parsed.data.wantsLess, desiredFeeling: parsed.data.desiredFeeling });
+  const mode = await createLifeMode({
+    userId,
+    seasonId: parsed.data.seasonId,
+    label,
+    wantsMore: parsed.data.wantsMore,
+    wantsLess: parsed.data.wantsLess,
+    desiredFeeling: parsed.data.desiredFeeling
+  });
   return reply.code(201).send(mode);
 });
 
