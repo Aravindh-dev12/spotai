@@ -1,0 +1,9 @@
+{
+  "name": "@form/api",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": { "dev": "tsx watch src/server.ts", "build": "tsc -p tsconfig.json", "typecheck": "tsc --noEmit -p tsconfig.json" },
+  "dependencies": { "@form/ai-gateway": "workspace:*", "@form/domain": "workspace:*", "fastify": "^5.0.0", "zod": "^4.0.0" },
+  "devDependencies": { "tsx": "^4.20.0", "typescript": "^5.9.0" }
+}
