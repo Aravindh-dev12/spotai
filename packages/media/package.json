@@ -1,0 +1,12 @@
+{
+  "name": "@form/media",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "exports": "./src/index.ts",
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.888.0",
+    "@aws-sdk/s3-request-presigner": "^3.888.0"
+  },
+  "devDependencies": { "typescript": "^5.9.0" }
+}
