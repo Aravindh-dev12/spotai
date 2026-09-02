@@ -1,8 +1,8 @@
 {
   "expo": {
-    "name": "FORM",
-    "slug": "form",
-    "scheme": "form",
+    "name": "SpotAI",
+    "slug": "spotai",
+    "scheme": "spotai",
     "plugins": ["expo-router"],
     "experiments": { "typedRoutes": true }
   }
