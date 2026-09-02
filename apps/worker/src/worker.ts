@@ -1,10 +1,10 @@
 import { Worker } from 'bullmq';
-import IORedis from 'ioredis';
-import { StubAiGateway } from '@form/ai-gateway';
+import { Redis } from 'ioredis';
+import { StubAiGateway, type AiGateway } from '@form/ai-gateway';
 import { updateRevealJob } from '@form/db/features';
 
-const connection = new IORedis(process.env.REDIS_URL ?? 'redis://localhost:6379', { maxRetriesPerRequest: null });
-const ai = new StubAiGateway();
+const connection = new Redis(process.env.REDIS_URL ?? 'redis://localhost:6379', { maxRetriesPerRequest: null });
+const ai: AiGateway = new StubAiGateway();
 
 new Worker('form-jobs', async job => {
   switch (job.name) {
@@ -21,8 +21,8 @@ new Worker('form-jobs', async job => {
           mediaIds: [String(job.data.sourceMediaId)],
           consentToken: `reveal:${revealId}`
         });
-        // The stub provider does not create a persisted output asset yet. A production
-        // renderer adapter must create media_assets output before marking the job ready.
+        // The stub provider intentionally does not persist a rendered output asset.
+        // A production renderer adapter must create the output media asset before ready.
         await updateRevealJob(revealId, { status: result.status === 'ready' ? 'ready' : 'processing' });
         return result;
       } catch (error) {
