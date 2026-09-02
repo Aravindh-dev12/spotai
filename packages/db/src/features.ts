@@ -6,6 +6,7 @@ const hashToken = (token: string) => createHash('sha256').update(token).digest('
 const makeToken = () => randomBytes(32).toString('base64url');
 
 type SqlExecutor = Pick<Pool, 'execute'> | Pick<PoolConnection, 'execute'>;
+type RecapAggregateRow = RowDataPacket & { signalCount: number | string; friendConfirmed: number | string | null; mediaSupported: number | string | null };
 
 export async function createUserAndSession(input: { handle?: string; birthDate: string }) {
   const userId = randomUUID();
@@ -167,9 +168,9 @@ export async function trackEvent(userId: string | null, eventName: string, prope
 }
 
 export async function getSeasonRecap(userId: string, seasonId: string) {
-  const [rows] = await pool.execute<RowDataPacket[]>(`SELECT COUNT(*) AS signalCount, SUM(evidence_level = 'friend') AS friendConfirmed, SUM(evidence_level = 'media') AS mediaSupported FROM life_signals WHERE user_id = ? AND season_id = ? AND deleted_at IS NULL`, [userId, seasonId]);
+  const [rows] = await pool.execute<RecapAggregateRow[]>(`SELECT COUNT(*) AS signalCount, SUM(evidence_level = 'friend') AS friendConfirmed, SUM(evidence_level = 'media') AS mediaSupported FROM life_signals WHERE user_id = ? AND season_id = ? AND deleted_at IS NULL`, [userId, seasonId]);
   const [stateRows] = await pool.execute<RowDataPacket[]>(`SELECT traits, awakening_progress AS awakeningProgress, archetype, level, rules_version AS rulesVersion FROM form_states WHERE user_id = ? AND season_id = ? LIMIT 1`, [userId, seasonId]);
-  const aggregate = rows[0] ?? {};
+  const aggregate: RecapAggregateRow | undefined = rows[0];
   const state = stateRows[0] ?? null;
-  return { seasonId, signalCount: Number(aggregate.signalCount ?? 0), friendConfirmed: Number(aggregate.friendConfirmed ?? 0), mediaSupported: Number(aggregate.mediaSupported ?? 0), form: state ? { ...state, traits: typeof state.traits === 'string' ? JSON.parse(state.traits) : state.traits } : null };
+  return { seasonId, signalCount: Number(aggregate?.signalCount ?? 0), friendConfirmed: Number(aggregate?.friendConfirmed ?? 0), mediaSupported: Number(aggregate?.mediaSupported ?? 0), form: state ? { ...state, traits: typeof state.traits === 'string' ? JSON.parse(state.traits) : state.traits } : null };
 }
