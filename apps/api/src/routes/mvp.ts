@@ -1,5 +1,5 @@
 import { Queue } from 'bullmq';
-import IORedis from 'ioredis';
+import { Redis } from 'ioredis';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
@@ -25,7 +25,7 @@ import {
 import { getFormState } from '@form/db';
 import { createSignedUpload, createSignedDownload } from '@form/media';
 
-const redis = new IORedis(process.env.REDIS_URL ?? 'redis://localhost:6379', { maxRetriesPerRequest: null });
+const redis = new Redis(process.env.REDIS_URL ?? 'redis://localhost:6379', { maxRetriesPerRequest: null });
 const jobs = new Queue('form-jobs', { connection: redis });
 
 export async function authenticatedUserId(request: FastifyRequest) {
