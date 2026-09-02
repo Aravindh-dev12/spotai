@@ -9,5 +9,5 @@
   },
   "scripts": { "schema:print": "cat schema.sql", "typecheck": "tsc --noEmit -p tsconfig.json" },
   "dependencies": { "@form/domain": "workspace:*", "mysql2": "^3.14.0" },
-  "devDependencies": { "typescript": "^5.9.0" }
+  "devDependencies": { "@types/node": "^22.0.0", "typescript": "^5.9.0" }
 }
