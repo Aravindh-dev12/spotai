@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+export const TRAIT_RULE_VERSION = 'traits-v1';
 export const traitKeys = ['explore', 'connect', 'create', 'move', 'build', 'care'] as const;
 export type TraitKey = (typeof traitKeys)[number];
 
@@ -26,6 +27,7 @@ export const lifeModeSchema = z.object({
 export type LifeMode = z.infer<typeof lifeModeSchema>;
 
 export const evidenceLevelSchema = z.enum(['self', 'friend', 'media', 'system']);
+export type EvidenceLevel = z.infer<typeof evidenceLevelSchema>;
 export const lifeSignalSchema = z.object({
   id: z.string().uuid(),
   userId: z.string().uuid(),
@@ -57,15 +59,40 @@ export const formArchetypes = {
 export type FormArchetype = keyof typeof formArchetypes;
 
 const clamp = (n: number) => Math.max(0, Math.min(100, n));
-const emptyTraits = (): TraitVector => ({ explore: 0, connect: 0, create: 0, move: 0, build: 0, care: 0 });
+const round = (n: number) => Number(n.toFixed(2));
 
-export function applySignal(current: TraitVector, classified: ClassifiedSignal, evidenceMultiplier = 1): TraitVector {
-  const next = { ...current };
-  for (const key of traitKeys) {
-    const delta = (classified.weights[key] / 100) * 8 * classified.confidence * evidenceMultiplier;
-    next[key] = clamp(Number((next[key] + delta).toFixed(2)));
+export function newTraitVector(): TraitVector {
+  return { explore: 0, connect: 0, create: 0, move: 0, build: 0, care: 0 };
+}
+
+export function evidenceMultiplier(level: EvidenceLevel): number {
+  switch (level) {
+    case 'friend': return 1.1;
+    case 'media': return 1.15;
+    case 'system': return 1.05;
+    default: return 1;
   }
+}
+
+export function signalDelta(classified: ClassifiedSignal, multiplier = 1): TraitVector {
+  const delta = newTraitVector();
+  for (const key of traitKeys) {
+    delta[key] = round((classified.weights[key] / 100) * 8 * classified.confidence * multiplier);
+  }
+  return delta;
+}
+
+export function applySignal(current: TraitVector, classified: ClassifiedSignal, multiplier = 1): TraitVector {
+  const delta = signalDelta(classified, multiplier);
+  const next = { ...current };
+  for (const key of traitKeys) next[key] = clamp(round(next[key] + delta[key]));
   return next;
+}
+
+export function traitDifference(previous: TraitVector, next: TraitVector): TraitVector {
+  const delta = newTraitVector();
+  for (const key of traitKeys) delta[key] = round(next[key] - previous[key]);
+  return delta;
 }
 
 export function awakeningProgress(traits: TraitVector): number {
@@ -83,5 +110,3 @@ export function resolveForm(traits: TraitVector): FormArchetype | null {
   }
   return winner;
 }
-
-export function newTraitVector(): TraitVector { return emptyTraits(); }
