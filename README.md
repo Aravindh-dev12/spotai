@@ -10,13 +10,26 @@ SpotAI is the current repository/app codename. **Form** is the internal product 
 
 The AI layer classifies or renders. It never writes the user's final identity state directly.
 
+## Tech stack
+
+- **Mobile:** Expo + React Native + Expo Router + TypeScript
+- **API:** Fastify + TypeScript + Zod
+- **Primary database:** MySQL 8.4 / InnoDB / utf8mb4
+- **Database driver:** mysql2/promise with pooled connections
+- **Async jobs:** Redis + BullMQ
+- **AI boundary:** provider-neutral `@form/ai-gateway`
+- **Identity/progression:** deterministic shared logic in `@form/domain`
+- **Monorepo:** pnpm workspaces
+- **Local infrastructure:** Docker Compose
+- **CI:** GitHub Actions
+
 ## Monorepo
 
 - `apps/mobile` — Expo / React Native alpha client.
 - `apps/api` — Fastify HTTP API.
 - `apps/worker` — BullMQ async jobs.
 - `packages/domain` — product schemas + deterministic Form engine.
-- `packages/db` — PostgreSQL schema and repositories.
+- `packages/db` — MySQL schema and repositories.
 - `packages/ai-gateway` — provider-neutral AI boundary.
 - `packages/events` — cross-service event contracts.
 - `docs` — product/API implementation docs.
@@ -31,6 +44,8 @@ docker compose up -d
 pnpm install
 pnpm --filter @form/api dev
 ```
+
+MySQL runs locally at `localhost:3306` using database `form` and the development `form/form` credentials from `docker-compose.yml`. Redis runs at `localhost:6379`.
 
 In another terminal:
 
@@ -55,6 +70,10 @@ The alpha mobile client bootstraps a development-only adult test account, starts
 - `POST /v1/life-signals/preview`
 
 Authenticated alpha endpoints currently use `x-user-id`. Replace this with real authentication before external testing.
+
+## Data architecture rule
+
+MySQL stores canonical product state: users, Seasons, Life Modes, Life Signals, classifications, Form states, Crews and Memories. Redis is not a source of truth; it is only used for queues/caching/ephemeral coordination. AI providers never directly mutate canonical Form identity. Identity is recomputed deterministically from persisted evidence.
 
 ## Not yet production-ready
 
