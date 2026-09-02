@@ -12,6 +12,7 @@ import {
 import { StubAiGateway } from '@form/ai-gateway';
 import {
   pool,
+  createDevUser,
   createSeason,
   createLifeMode,
   insertLifeSignal,
@@ -48,18 +49,14 @@ async function recompute(userId: string, seasonId: string) {
 
 app.get('/health', async () => {
   await pool.query('SELECT 1');
-  return { ok: true, service: 'form-api', database: 'ok' };
+  return { ok: true, service: 'form-api', database: 'mysql' };
 });
 
 app.post('/v1/dev/users', async (request, reply) => {
   if (process.env.NODE_ENV === 'production') return reply.code(404).send({ error: 'not_found' });
   const body = z.object({ handle: z.string().min(2).max(30).optional() }).safeParse(request.body ?? {});
   if (!body.success) return reply.code(400).send({ error: 'invalid_body', details: body.error.flatten() });
-  const { rows } = await pool.query(
-    `INSERT INTO users (handle,is_adult_verified) VALUES ($1,true) RETURNING id,handle,is_adult_verified AS "isAdultVerified"`,
-    [body.data.handle ?? null]
-  );
-  return reply.code(201).send(rows[0]);
+  return reply.code(201).send(await createDevUser(body.data.handle));
 });
 
 app.post('/v1/seasons', async (request, reply) => {
