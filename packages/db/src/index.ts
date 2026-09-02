@@ -1,14 +1,10 @@
 import { randomUUID } from 'node:crypto';
-import mysql from 'mysql2/promise';
+import mysql, { type ResultSetHeader, type RowDataPacket } from 'mysql2/promise';
 import type { ClassifiedSignal, LifeSignal, TraitVector } from '@form/domain';
 
-export const pool = mysql.createPool({
-  uri: process.env.DATABASE_URL ?? 'mysql://form:form@localhost:3306/form',
-  waitForConnections: true,
-  connectionLimit: 10,
-  queueLimit: 0,
-  timezone: 'Z'
-});
+export const pool = mysql.createPool(
+  process.env.DATABASE_URL ?? 'mysql://form:form@localhost:3306/form'
+);
 
 export interface FormStateRow {
   userId: string;
@@ -19,7 +15,7 @@ export interface FormStateRow {
   level: number;
 }
 
-type Row = Record<string, any>;
+type Row = RowDataPacket & Record<string, unknown>;
 
 const parseJson = <T>(value: unknown): T => {
   if (typeof value === 'string') return JSON.parse(value) as T;
@@ -57,7 +53,7 @@ export async function createLifeMode(input: {
   const createdAt = new Date().toISOString();
   await pool.execute(
     `INSERT INTO life_modes (id, user_id, season_id, label, wants_more, wants_less, desired_feeling)
-     VALUES (?, ?, ?, ?, CAST(? AS JSON), CAST(? AS JSON), ?)`,
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
     [id, input.userId, input.seasonId, input.label, JSON.stringify(input.wantsMore), JSON.stringify(input.wantsLess), input.desiredFeeling ?? null]
   );
   return {
@@ -84,14 +80,14 @@ export async function insertLifeSignal(signal: LifeSignal) {
 export async function saveClassification(classification: ClassifiedSignal) {
   await pool.execute(
     `INSERT INTO signal_classifications (signal_id, weights, confidence, rationale, model_metadata)
-     VALUES (?, CAST(? AS JSON), ?, ?, JSON_OBJECT())
+     VALUES (?, ?, ?, ?, JSON_OBJECT())
      ON DUPLICATE KEY UPDATE weights=VALUES(weights), confidence=VALUES(confidence), rationale=VALUES(rationale)`,
     [classification.signalId, JSON.stringify(classification.weights), classification.confidence, classification.rationale]
   );
 }
 
 export async function listActiveClassifications(userId: string, seasonId: string): Promise<ClassifiedSignal[]> {
-  const [rows] = await pool.execute<mysql.RowDataPacket[]>(
+  const [rows] = await pool.execute<RowDataPacket[]>(
     `SELECT sc.signal_id AS signalId, sc.weights, sc.confidence, sc.rationale
      FROM signal_classifications sc
      JOIN life_signals ls ON ls.id = sc.signal_id
@@ -99,16 +95,19 @@ export async function listActiveClassifications(userId: string, seasonId: string
      ORDER BY ls.occurred_at ASC, ls.created_at ASC`,
     [userId, seasonId]
   );
-  return rows.map((row: Row) => ({
-    signalId: row.signalId,
-    weights: parseJson<TraitVector>(row.weights),
-    confidence: Number(row.confidence),
-    rationale: row.rationale
-  }));
+  return rows.map((row) => {
+    const item = row as Row;
+    return {
+      signalId: String(item.signalId),
+      weights: parseJson<TraitVector>(item.weights),
+      confidence: Number(item.confidence),
+      rationale: String(item.rationale)
+    };
+  });
 }
 
 export async function softDeleteSignal(userId: string, signalId: string) {
-  const [result] = await pool.execute<mysql.ResultSetHeader>(
+  const [result] = await pool.execute<ResultSetHeader>(
     `UPDATE life_signals SET deleted_at = CURRENT_TIMESTAMP(3)
      WHERE id = ? AND user_id = ? AND deleted_at IS NULL`,
     [signalId, userId]
@@ -119,7 +118,7 @@ export async function softDeleteSignal(userId: string, signalId: string) {
 export async function upsertFormState(state: FormStateRow) {
   await pool.execute(
     `INSERT INTO form_states (user_id, season_id, traits, awakening_progress, archetype, level)
-     VALUES (?, ?, CAST(? AS JSON), ?, ?, ?)
+     VALUES (?, ?, ?, ?, ?, ?)
      ON DUPLICATE KEY UPDATE
        traits=VALUES(traits),
        awakening_progress=VALUES(awakening_progress),
@@ -132,7 +131,7 @@ export async function upsertFormState(state: FormStateRow) {
 }
 
 export async function getFormState(userId: string, seasonId: string): Promise<FormStateRow | null> {
-  const [rows] = await pool.execute<mysql.RowDataPacket[]>(
+  const [rows] = await pool.execute<RowDataPacket[]>(
     `SELECT user_id AS userId, season_id AS seasonId, traits, awakening_progress AS awakeningProgress, archetype, level
      FROM form_states WHERE user_id = ? AND season_id = ? LIMIT 1`,
     [userId, seasonId]
@@ -140,11 +139,11 @@ export async function getFormState(userId: string, seasonId: string): Promise<Fo
   const row = rows[0] as Row | undefined;
   if (!row) return null;
   return {
-    userId: row.userId,
-    seasonId: row.seasonId,
+    userId: String(row.userId),
+    seasonId: String(row.seasonId),
     traits: parseJson<TraitVector>(row.traits),
     awakeningProgress: Number(row.awakeningProgress),
-    archetype: row.archetype ?? null,
+    archetype: row.archetype == null ? null : String(row.archetype),
     level: Number(row.level)
   };
 }
