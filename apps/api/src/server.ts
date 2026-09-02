@@ -7,6 +7,9 @@ import {
   applySignal,
   awakeningProgress,
   resolveForm,
+  evidenceMultiplier,
+  traitDifference,
+  TRAIT_RULE_VERSION,
   type TraitVector
 } from '@form/domain';
 import { StubAiGateway } from '@form/ai-gateway';
@@ -14,33 +17,68 @@ import {
   pool,
   createDevUser,
   createSeason,
+  getActiveSeason,
   createLifeMode,
   insertLifeSignal,
+  listLifeSignals,
   saveClassification,
   listActiveClassifications,
   softDeleteSignal,
   upsertFormState,
   getFormState,
+  appendFormHistory,
+  getFormHistory,
   createCrew
 } from '@form/db';
+import { appendDomainEvent, trackEvent } from '@form/db/features';
 import { registerMvpRoutes, authenticatedUserId } from './routes/mvp.js';
 
 const app = Fastify({ logger: true, bodyLimit: 1_000_000 });
 const ai = new StubAiGateway();
 
-async function recompute(userId: string, seasonId: string) {
+async function recompute(userId: string, seasonId: string, context: {
+  changeType: 'signal_added'|'signal_removed'|'recomputed';
+  triggerSignalId?: string | null;
+  reason: string;
+}) {
+  const previous = await getFormState(userId, seasonId);
+  const previousTraits = previous?.traits ?? newTraitVector();
   const classifications = await listActiveClassifications(userId, seasonId);
   let traits: TraitVector = newTraitVector();
-  for (const item of classifications) traits = applySignal(traits, item);
-  const state = {
+  for (const item of classifications) traits = applySignal(traits, item, evidenceMultiplier(item.evidenceLevel));
+
+  const progress = awakeningProgress(traits);
+  const archetype = resolveForm(traits);
+  const state = await upsertFormState({
     userId,
     seasonId,
     traits,
-    awakeningProgress: awakeningProgress(traits),
-    archetype: resolveForm(traits),
-    level: 1
-  };
-  return upsertFormState(state);
+    awakeningProgress: progress,
+    archetype,
+    level: previous?.level ?? 1,
+    rulesVersion: TRAIT_RULE_VERSION
+  });
+
+  const awakenedNow = !previous?.archetype && Boolean(archetype);
+  await appendFormHistory({
+    userId,
+    seasonId,
+    triggerSignalId: context.triggerSignalId ?? null,
+    changeType: awakenedNow ? 'awakened' : context.changeType,
+    previousTraits,
+    deltaTraits: traitDifference(previousTraits, traits),
+    resultingTraits: traits,
+    awakeningProgress: progress,
+    archetype,
+    reason: context.reason
+  });
+  await appendDomainEvent(userId, awakenedNow ? 'form_awakened' : 'trait_vector_changed', 'form', seasonId, {
+    rulesVersion: TRAIT_RULE_VERSION,
+    triggerSignalId: context.triggerSignalId ?? null,
+    awakeningProgress: progress,
+    archetype
+  });
+  return state;
 }
 
 app.get('/health', async () => {
@@ -55,6 +93,12 @@ app.post('/v1/dev/users', async (request, reply) => {
   return reply.code(201).send(await createDevUser(body.data.handle));
 });
 
+app.get('/v1/seasons/active', async (request, reply) => {
+  const userId = await authenticatedUserId(request);
+  if (!userId) return reply.code(401).send({ error: 'user_required' });
+  return { season: await getActiveSeason(userId) };
+});
+
 app.post('/v1/seasons', async (request, reply) => {
   const userId = await authenticatedUserId(request);
   if (!userId) return reply.code(401).send({ error: 'user_required' });
@@ -62,7 +106,10 @@ app.post('/v1/seasons', async (request, reply) => {
   if (!parsed.success) return reply.code(400).send({ error: 'invalid_season', details: parsed.error.flatten() });
   const startsAt = new Date();
   const endsAt = new Date(startsAt.getTime() + parsed.data.days * 86_400_000);
-  return reply.code(201).send(await createSeason(userId, parsed.data.label, startsAt, endsAt));
+  const season = await createSeason(userId, parsed.data.label, startsAt, endsAt);
+  await appendDomainEvent(userId, 'life_mode_started', 'season', String(season.id), { label: season.label });
+  await trackEvent(userId, 'season_started', { seasonId: season.id });
+  return reply.code(201).send(season);
 });
 
 app.post('/v1/life-modes', async (request, reply) => {
@@ -75,16 +122,29 @@ app.post('/v1/life-modes', async (request, reply) => {
     desiredFeeling: z.string().max(40).optional()
   }).safeParse(request.body);
   if (!parsed.success) return reply.code(400).send({ error: 'invalid_life_mode', details: parsed.error.flatten() });
-  const label = await ai.generateLifeModeLabel({ wantsMore: parsed.data.wantsMore, wantsLess: parsed.data.wantsLess, desiredFeeling: parsed.data.desiredFeeling });
-  const mode = await createLifeMode({
-    userId,
-    seasonId: parsed.data.seasonId,
-    label,
-    wantsMore: parsed.data.wantsMore,
-    wantsLess: parsed.data.wantsLess,
-    desiredFeeling: parsed.data.desiredFeeling
-  });
-  return reply.code(201).send(mode);
+  try {
+    const label = await ai.generateLifeModeLabel({ wantsMore: parsed.data.wantsMore, wantsLess: parsed.data.wantsLess, desiredFeeling: parsed.data.desiredFeeling });
+    const mode = await createLifeMode({ userId, seasonId: parsed.data.seasonId, label, wantsMore: parsed.data.wantsMore, wantsLess: parsed.data.wantsLess, desiredFeeling: parsed.data.desiredFeeling });
+    await appendDomainEvent(userId, 'life_mode_started', 'life_mode', mode.id, { seasonId: mode.seasonId, label: mode.label });
+    await trackEvent(userId, 'life_mode_created', { seasonId: mode.seasonId, label: mode.label });
+    return reply.code(201).send(mode);
+  } catch (error) {
+    if (String(error).includes('season_not_found')) return reply.code(404).send({ error: 'season_not_found' });
+    if (String(error).includes('season_inactive')) return reply.code(409).send({ error: 'season_inactive' });
+    throw error;
+  }
+});
+
+app.get('/v1/life-signals', async (request, reply) => {
+  const userId = await authenticatedUserId(request);
+  if (!userId) return reply.code(401).send({ error: 'user_required' });
+  const query = z.object({ seasonId: z.string().uuid() }).safeParse(request.query);
+  if (!query.success) return reply.code(400).send({ error: 'season_id_required' });
+  try { return { signals: await listLifeSignals(userId, query.data.seasonId) }; }
+  catch (error) {
+    if (String(error).includes('season_not_found')) return reply.code(404).send({ error: 'season_not_found' });
+    throw error;
+  }
 });
 
 app.post('/v1/life-signals', async (request, reply) => {
@@ -99,21 +159,20 @@ app.post('/v1/life-signals', async (request, reply) => {
     visibility: z.enum(['private','crew']).default('private')
   }).safeParse(request.body);
   if (!body.success) return reply.code(400).send({ error: 'invalid_signal', details: body.error.flatten() });
-  const signal = lifeSignalSchema.parse({
-    id: randomUUID(),
-    userId,
-    seasonId: body.data.seasonId,
-    description: body.data.description,
-    evidenceLevel: body.data.evidenceLevel,
-    mediaIds: body.data.mediaIds,
-    occurredAt: body.data.occurredAt ?? new Date().toISOString(),
-    visibility: body.data.visibility
-  });
-  await insertLifeSignal(signal);
-  const classification = await ai.classifyLifeSignal(signal);
-  await saveClassification(classification);
-  const form = await recompute(userId, signal.seasonId);
-  return reply.code(201).send({ signal, classification, form });
+  const signal = lifeSignalSchema.parse({ id: randomUUID(), userId, seasonId: body.data.seasonId, description: body.data.description, evidenceLevel: body.data.evidenceLevel, mediaIds: body.data.mediaIds, occurredAt: body.data.occurredAt ?? new Date().toISOString(), visibility: body.data.visibility });
+  try {
+    await insertLifeSignal(signal);
+    const classification = await ai.classifyLifeSignal(signal);
+    await saveClassification(classification);
+    await appendDomainEvent(userId, 'life_signal_recorded', 'life_signal', signal.id, { seasonId: signal.seasonId, evidenceLevel: signal.evidenceLevel });
+    const form = await recompute(userId, signal.seasonId, { changeType: 'signal_added', triggerSignalId: signal.id, reason: classification.rationale });
+    await trackEvent(userId, 'life_signal_recorded', { seasonId: signal.seasonId, awakeningProgress: form.awakeningProgress });
+    return reply.code(201).send({ signal, classification, form });
+  } catch (error) {
+    if (String(error).includes('season_not_found')) return reply.code(404).send({ error: 'season_not_found' });
+    if (String(error).includes('season_inactive')) return reply.code(409).send({ error: 'season_inactive' });
+    throw error;
+  }
 });
 
 app.delete('/v1/life-signals/:id', async (request, reply) => {
@@ -124,7 +183,8 @@ app.delete('/v1/life-signals/:id', async (request, reply) => {
   if (!params.success || !query.success) return reply.code(400).send({ error: 'invalid_request' });
   const deleted = await softDeleteSignal(userId, params.data.id);
   if (!deleted) return reply.code(404).send({ error: 'signal_not_found' });
-  return { deleted: true, form: await recompute(userId, query.data.seasonId) };
+  await appendDomainEvent(userId, 'life_signal_removed', 'life_signal', params.data.id, { seasonId: query.data.seasonId });
+  return { deleted: true, form: await recompute(userId, query.data.seasonId, { changeType: 'signal_removed', triggerSignalId: params.data.id, reason: 'User removed this moment from their Form.' }) };
 });
 
 app.get('/v1/form', async (request, reply) => {
@@ -132,9 +192,26 @@ app.get('/v1/form', async (request, reply) => {
   if (!userId) return reply.code(401).send({ error: 'user_required' });
   const query = z.object({ seasonId: z.string().uuid() }).safeParse(request.query);
   if (!query.success) return reply.code(400).send({ error: 'season_id_required' });
-  const state = await getFormState(userId, query.data.seasonId) ?? await recompute(userId, query.data.seasonId);
-  const reasons = await listActiveClassifications(userId, query.data.seasonId);
-  return { ...state, reasons: reasons.map(({ signalId, weights, confidence, rationale }) => ({ signalId, weights, confidence, rationale })) };
+  try {
+    const state = await getFormState(userId, query.data.seasonId) ?? await recompute(userId, query.data.seasonId, { changeType: 'recomputed', reason: 'Initial Form state created from current evidence.' });
+    const reasons = await listActiveClassifications(userId, query.data.seasonId);
+    return { ...state, reasons: reasons.map(({ signalId, weights, confidence, rationale, evidenceLevel }) => ({ signalId, weights, confidence, rationale, evidenceLevel })) };
+  } catch (error) {
+    if (String(error).includes('season_not_found')) return reply.code(404).send({ error: 'season_not_found' });
+    throw error;
+  }
+});
+
+app.get('/v1/form/history', async (request, reply) => {
+  const userId = await authenticatedUserId(request);
+  if (!userId) return reply.code(401).send({ error: 'user_required' });
+  const query = z.object({ seasonId: z.string().uuid() }).safeParse(request.query);
+  if (!query.success) return reply.code(400).send({ error: 'season_id_required' });
+  try { return { history: await getFormHistory(userId, query.data.seasonId) }; }
+  catch (error) {
+    if (String(error).includes('season_not_found')) return reply.code(404).send({ error: 'season_not_found' });
+    throw error;
+  }
 });
 
 app.post('/v1/crews', async (request, reply) => {
@@ -142,18 +219,27 @@ app.post('/v1/crews', async (request, reply) => {
   if (!userId) return reply.code(401).send({ error: 'user_required' });
   const parsed = z.object({ name: z.string().min(1).max(50).optional() }).safeParse(request.body ?? {});
   if (!parsed.success) return reply.code(400).send({ error: 'invalid_crew' });
-  return reply.code(201).send(await createCrew(userId, parsed.data.name));
+  const crew = await createCrew(userId, parsed.data.name);
+  await appendDomainEvent(userId, 'crew_created', 'crew', crew.id, { name: crew.name });
+  await trackEvent(userId, 'crew_created', { crewId: crew.id });
+  return reply.code(201).send(crew);
 });
 
 app.post('/v1/life-signals/preview', async (request, reply) => {
   const parsed = lifeSignalSchema.safeParse(request.body);
   if (!parsed.success) return reply.code(400).send({ error: 'invalid_signal', details: parsed.error.flatten() });
   const classification = await ai.classifyLifeSignal(parsed.data);
-  const traits = applySignal(newTraitVector(), classification);
-  return { classification, preview: { traits, awakeningProgress: awakeningProgress(traits), archetype: resolveForm(traits) } };
+  const traits = applySignal(newTraitVector(), classification, evidenceMultiplier(parsed.data.evidenceLevel));
+  return { classification, preview: { traits, awakeningProgress: awakeningProgress(traits), archetype: resolveForm(traits), rulesVersion: TRAIT_RULE_VERSION } };
 });
 
 await registerMvpRoutes(app);
+
+app.setErrorHandler((error, request, reply) => {
+  request.log.error(error);
+  if (reply.sent) return;
+  return reply.code(500).send({ error: 'internal_error' });
+});
 
 const port = Number(process.env.API_PORT ?? 3000);
 await app.listen({ port, host: '0.0.0.0' });
