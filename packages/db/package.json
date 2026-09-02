@@ -3,7 +3,10 @@
   "version": "0.0.1",
   "private": true,
   "type": "module",
-  "exports": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./features": "./src/features.ts"
+  },
   "scripts": { "schema:print": "cat schema.sql", "typecheck": "tsc --noEmit -p tsconfig.json" },
   "dependencies": { "@form/domain": "workspace:*", "mysql2": "^3.14.0" },
   "devDependencies": { "typescript": "^5.9.0" }
