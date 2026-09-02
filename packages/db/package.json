@@ -2,5 +2,9 @@
   "name": "@form/db",
   "version": "0.0.1",
   "private": true,
-  "scripts": { "schema:print": "cat schema.sql" }
+  "type": "module",
+  "exports": "./src/index.ts",
+  "scripts": { "schema:print": "cat schema.sql", "typecheck": "tsc --noEmit -p tsconfig.json" },
+  "dependencies": { "@form/domain": "workspace:*", "pg": "^8.13.0" },
+  "devDependencies": { "@types/pg": "^8.11.10", "typescript": "^5.9.0" }
 }
