@@ -3,6 +3,8 @@ import { useRouter } from 'expo-router';
 import { SafeAreaView, Text, TextInput, View, Pressable, ActivityIndicator, ScrollView } from 'react-native';
 import { addLifeSignal, type FormState } from '../lib/api';
 
+const traitKeys: Array<keyof FormState['traits']> = ['explore', 'connect', 'create', 'move', 'build', 'care'];
+
 export default function Awakening() {
   const router = useRouter();
   const [description, setDescription] = useState('');
@@ -36,7 +38,7 @@ export default function Awakening() {
       <Text style={{ fontSize: 28, fontWeight: '700' }}>{state.archetype ?? 'UNKNOWN FORM'}</Text>
       <Text style={{ fontSize: 18 }}>{state.awakeningProgress}% awakened</Text>
       <View style={{ height: 10, borderWidth: 1, borderRadius: 99, overflow: 'hidden' }}><View style={{ height: '100%', width: `${state.awakeningProgress}%`, backgroundColor: '#111' }} /></View>
-      {Object.entries(state.traits).map(([key, value]) => <Text key={key}>{key.toUpperCase()} · {value.toFixed(1)}</Text>)}
+      {traitKeys.map(key => <Text key={key}>{key.toUpperCase()} · {state.traits[key].toFixed(1)}</Text>)}
       <Pressable onPress={() => router.replace('/(tabs)')} style={{ marginTop: 14, padding: 18, borderWidth: 1, borderRadius: 16 }}><Text style={{ textAlign: 'center', fontSize: 18 }}>Open my Form</Text></Pressable>
     </View> : null}
   </ScrollView></SafeAreaView>;
