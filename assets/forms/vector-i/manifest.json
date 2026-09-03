@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "archetype": "VECTOR",
+  "level": 1,
+  "glb": "./vector-1.glb",
+  "rig": {
+    "armature": "FORM_RIG",
+    "rootBone": "root",
+    "hipsBone": "hips",
+    "headBone": "head",
+    "leftHandBone": "hand.L",
+    "rightHandBone": "hand.R"
+  },
+  "animations": {
+    "idle": "idle",
+    "open_palm": "open_palm",
+    "hands_together": "hands_together"
+  },
+  "abilities": [
+    {
+      "id": "vector_field",
+      "trigger": "open_palm",
+      "cooldownMs": 1400,
+      "description": "Project a directional field from the active hand."
+    },
+    {
+      "id": "vector_charge",
+      "trigger": "hands_together",
+      "cooldownMs": 3000,
+      "description": "Charge the first Signal Zero synchronization event."
+    }
+  ]
+}
