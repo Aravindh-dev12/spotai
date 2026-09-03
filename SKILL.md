@@ -1,135 +1,144 @@
-# SpotAI / FORM Repository Skill Guide
+# SpotAI / Form Repository Skill Guide
 
 ## Purpose
 
-This repository is for **FORM**, a consumer social identity platform built around one core product promise:
+This repository builds a **Life Identity Network** around one promise:
 
 > **You don't choose your character. Your life creates it.**
 
-FORM converts user-chosen aspirations and real-life experiences into a persistent, evolving digital identity called a **Form**. Friends create shared identity through **Crews**. Time is organized into **Seasons**. Cultural, entertainment, place, creator, and eventually licensed IP experiences are represented as **Worlds** that a user's existing Form can enter.
+`SpotAI` is a working codename. `Form` is the durable product object, not necessarily the final company/app name.
 
-The architecture must preserve this hierarchy:
+## Product hierarchy
 
-1. **Life** — what the user wants and what they choose to count from reality.
-2. **Form** — the persistent identity created from that evidence.
-3. **Crew** — the persistent relationship identity created by shared experiences.
-4. **Season** — the time-boxed evolution cycle.
-5. **Memory** — visualized proof/history of real experiences.
-6. **World** — a temporary context or universe that Forms enter; Worlds never replace Forms.
+Preserve this hierarchy in code, UX and architecture:
 
-A critical strategic rule:
+1. **Life** — what the user wants and which real moments they choose to count.
+2. **Form** — persistent identity derived from that evidence.
+3. **Crew** — persistent small-group relationship identity.
+4. **Season** — recurring evolution period.
+5. **Memory** — visualized history of real approved experiences.
+6. **World** — temporary experiential context entered by an existing Form.
 
 > **Worlds end. Your Form remembers.**
 
-## Product principles
+## Core loop
 
-### 1. Real life first, AI second
+`WANT → LIVE → AWAKEN → SHARE → CREW → EVOLVE → NEXT SEASON`
 
-FORM is not an AI-content network. AI should visualize, classify, summarize, adapt, and personalize **real user-approved life evidence**.
+Every significant feature should strengthen at least one stage without weakening explainability, consent or persistent identity.
 
-Bad direction:
-- generate fake activity and call it life
-- infer personality from a face
-- create arbitrary characters with no provenance
-- reward passive scrolling
+## Non-negotiable product rules
 
-Correct direction:
-- user chooses what they want more of
-- user chooses which moments count
-- evidence is classified into transparent traits
-- deterministic rules drive Form progression
-- AI renders the meaning visually
+### Real life first
 
-### 2. User-controlled identity
+AI can interpret and visualize real user-approved evidence. Do not fabricate fake life activity and count it as evidence. Do not infer personality from a face.
 
-The product must be able to answer:
+### User-controlled evidence
 
-> **Why did my Form change?**
+The user decides which moments count. They must be able to inspect why a Form changed and remove evidence where supported.
 
-Users must be able to inspect and remove evidence. AI may classify evidence, but should not freely assign psychological identities.
+### Deterministic identity
 
-### 3. Form is persistent
+AI classification is structured input. Versioned deterministic rules apply Trait changes and resolve Form identity. AI must never be final authority for archetype, level, payment, consent, authorization or Crew membership.
 
-Do not generate unrelated avatars on every interaction. A user's Form must preserve identity across:
-- camera transformations
-- memories
-- seasons
-- Crew experiences
-- Worlds
-- future gameplay
+### Persistent Form
 
-### 4. Crew is the social core
+A Form must remain recognizable across camera activation, Blender manifestations, Memories, Crew experiences, Seasons and Worlds. Do not generate a disconnected avatar for every interaction.
 
-Prioritize small, meaningful groups (roughly 2–5 people) over a public follower graph in early versions.
+### Crew before public graph
 
-Avoid shipping an Instagram-style public feed, DMs, or mass creator economy before the core identity loop has retention.
+Initial Crew size is roughly 2–5. Do not add an Instagram-style public feed, open DMs or creator economy before the core identity/social loop has retention.
 
-### 5. Worlds amplify the platform; they do not create it
+### Worlds amplify; they do not create the product
 
-FORM must work with zero movie, sports, artist, or brand partnerships.
+The product must work without entertainment/IP partnerships. A user enters every World with their existing Form.
 
-Worlds can later be:
-- FORM Originals
-- Place Worlds
-- Campus Worlds
-- Creator Worlds
-- Artist Worlds
-- Sports Worlds
-- Film/IP Worlds
+### Payment upgrades expression
 
-A user always enters a World **with their existing Form**.
+Keep core participation broadly accessible. Monetize premium cinematics, manifestations, Memories, finales and later World/Season expression. Do not use randomized loot boxes.
 
-### 6. Payment upgrades expression, not participation
+### Privacy is architecture
 
-The first Form, Crew participation, basic evolution, sharing, and basic season completion should remain broadly accessible.
+Do not require continuous background location, contact uploads, always-on microphone, unrestricted photo scanning or hidden health access. Use explicit scoped permissions.
 
-Premium can monetize:
-- high-quality cinematics
-- advanced memory renders
-- premium Form manifestations
-- Crew finales
-- Season Passes
-- World Passes
-- physical/digital collectibles
-- gifting
+### 18+ first
 
-Do not create randomized loot boxes or manipulative scarcity mechanics.
+Initial production rollout remains adult-first while consent, moderation, generated-media and relationship safety are proven.
 
-### 7. Privacy is product architecture
+## 3D / Blender rules
 
-Do not depend on background surveillance.
+Blender is an **offline authoring tool**, never identity authority.
 
-Initial product should avoid requiring:
-- continuous background location
-- contact-book uploads
-- always-on microphone
-- unrestricted photo-library scanning
-- hidden health-data access
+Pipeline:
 
-Use explicit, scoped permissions. Participation must remain possible without optional integrations.
+```text
+canonical Form state
+  → reviewed FormAssetManifest
+  → Blender-authored GLB
+  → mobile renderer
+```
 
-### 8. 18+ launch first
+Use the standardized `FORM_RIG` and semantic animation action names documented in `docs/BLENDER_FORM_PIPELINE.md`.
 
-Until safety, consent, moderation, generated-media handling, and relationship flows are proven, design initial production rollout for adults.
+Do not ship archetype-specific logic inside random animation code. Map semantic actions such as `open_palm` or `hands_together` through reviewed manifests.
 
-## Core product loop
+Start with `VECTOR I`. Do not build every Form before one manifestation is excellent and performant.
 
-The primary loop is:
+## O rules
 
-**WANT → LIVE → AWAKEN → SHARE → CREW → EVOLVE → NEXT SEASON**
+`O` is a separate intelligence/guide/world character:
 
-Where:
-- **WANT**: user chooses what they want more of now
-- **LIVE**: user completes or records real experiences
-- **AWAKEN**: the Form emerges from accumulated evidence
-- **SHARE**: a cinematic identity artifact leaves the app
-- **CREW**: friends join and shared identity forms
-- **EVOLVE**: Form and Crew history deepen
-- **NEXT SEASON**: a new direction begins without resetting identity
+```text
+FORM = USER IDENTITY
+O    = INTELLIGENCE / WORLD CHARACTER
+```
 
-## Core domain vocabulary
+O may communicate through an alien mathematical visual language and bounded AI dialogue. O never decides canonical Form state.
 
-Use these terms consistently in code and documentation:
+The procedural O generator is an engineering placeholder, not production art.
+
+## World Runtime rules
+
+`@form/world-runtime` owns deterministic realtime experience behavior:
+
+```text
+camera pose landmarks
+  → gesture detection
+  → semantic body action
+  → Form animation/ability
+  → deterministic World reducer
+  → completion event
+```
+
+The first allowed realtime World is the bounded original `SIGNAL_ZERO` vertical slice. World completion can create durable history/Memory/World outcomes according to rules, but must not directly rewrite Trait Vectors or Form archetypes.
+
+## AI boundaries
+
+AI may be used for:
+
+- onboarding language interpretation
+- Life Signal classification
+- safe contextual suggestions
+- recap narration
+- creative image/video rendering
+- concept/texture/animation ideation
+- bounded World adaptation
+- bounded O/NPC dialogue later
+
+AI must not be final authority for:
+
+- Trait mutation
+- Form archetype/level
+- entitlement/payment
+- consent
+- relationship membership
+- authorization
+- deterministic World completion
+- irreversible moderation without policy controls
+
+## Core vocabulary
+
+Use these terms consistently:
 
 - `LifeMode`
 - `LifeSignal`
@@ -147,109 +156,51 @@ Use these terms consistently in code and documentation:
 - `WorldMark`
 - `WorldPulse`
 - `Entitlement`
+- `FormAssetManifest`
 
-Avoid replacing these with generic terms such as `avatar`, `quest`, or `profile` unless the underlying object genuinely differs.
+## Architecture boundaries
 
-## Architecture rules
+Keep modules separated for identity/auth, Life Mode, evidence, deterministic traits, Form, Crew, Season, media/creative rendering, World runtime, payments/entitlements, trust/safety, notifications and analytics.
 
-### Domain-driven boundaries
+Prefer a modular monolith plus asynchronous jobs until operational scale justifies service extraction.
 
-Keep product logic separated into clear domains rather than one giant backend:
+Canonical durable state belongs in the relational database. Redis/BullMQ coordinate asynchronous work but are not the source of truth.
 
-- identity / auth
-- life-mode planning
-- evidence ingestion
-- trait progression
-- Form identity
-- social / Crew
-- media / creative rendering
-- seasons
-- memories
-- Worlds
-- payments / entitlements
-- moderation / trust
-- notifications
-- analytics / experimentation
+## Event/history rule
 
-### AI boundaries
+Identity history is part of the product moat. Persist enough information to reconstruct meaningful progression: rule version, confidence, reasons, previous/resulting Trait Vectors and durable domain events.
 
-Use AI for:
-- natural-language onboarding interpretation
-- evidence classification
-- content understanding
-- safe contextual suggestions
-- recap narration
-- visual/video generation
-- World mission adaptation
-- bounded NPC/character dialogue later
+Examples include `life_mode_started`, `life_signal_recorded`, `trait_vector_changed`, `form_awakened`, `form_evolved`, `crew_joined`, `memory_created`, `world_entered`, `world_completed`, `world_mark_earned`, `season_completed`.
 
-Do **not** use AI as the final source of truth for:
-- identity score mutations
-- entitlement state
-- payment state
-- consent state
-- relationship membership
-- authorization
-- irreversible moderation actions without policy controls
+## Current build order
 
-### Deterministic progression
+1. Verify build/tests and ownership/authorization.
+2. Life Mode → Life Signal → Awakening.
+3. Explainable persistent Form.
+4. One excellent `VECTOR I` reveal.
+5. Crew invitation/formation/progress.
+6. Blender `VECTOR I` manifestation quality.
+7. Live pose tracking + `SIGNAL_ZERO` runtime.
+8. Completion → short Memory/reveal → share.
+9. Season recap and next-Season retention.
+10. Payments for premium expression.
+11. Only after retention: broader original/place/campus/creator Worlds.
+12. Major licensed Worlds much later.
 
-Trait changes and Form evolution must be reproducible from stored inputs and versioned rules.
+## Explicitly deferred
 
-Persist:
-- scoring-rule version
-- evidence confidence
-- reasons for trait changes
-- previous and resulting trait vectors
+Do not expand early into Food, Health coaching, public feeds, open DMs, creator marketplace, large AR multiplayer, broad recommendation engines or major IP tooling.
 
-### Event-driven history
+## Build test
 
-Prefer append-only domain events for identity evolution. The user's history is part of the moat and must be reconstructable.
+Before implementing a feature ask:
 
-Example events:
-- `life_mode_started`
-- `life_signal_recorded`
-- `evidence_verified`
-- `trait_vector_changed`
-- `form_awakened`
-- `form_evolved`
-- `crew_joined`
-- `crew_identity_awakened`
-- `memory_created`
-- `world_entered`
-- `world_mark_earned`
-- `season_completed`
+1. Which core-loop stage does this improve?
+2. Does it strengthen persistent identity?
+3. Can the user understand why canonical identity changed?
+4. Does it collect only necessary data?
+5. Can it be validated more simply?
+6. Is AI being used as a capability rather than authority?
+7. Is Blender/3D being used as manifestation rather than identity logic?
 
-## MVP scope rule
-
-The first production-worthy version should prove only:
-
-1. Life Mode
-2. Unknown Form / awakening progress
-3. Life Signals
-4. transparent trait progression
-5. persistent Form
-6. one excellent camera/reveal output
-7. friend invites
-8. small Crews
-9. Crew progress
-10. monthly Season recap
-11. basic payments
-
-Do not let early implementation expand into Food, Health, AR multiplayer, public feeds, DMs, creator marketplace, large licensed IP Worlds, or broad recommendation engines before this loop is validated.
-
-## Build philosophy
-
-Before implementing any feature, ask:
-
-1. Which stage of `WANT → LIVE → AWAKEN → SHARE → CREW → EVOLVE` does this improve?
-2. Does it strengthen persistent identity or distract from it?
-3. Can the user understand why the system changed their Form?
-4. Does it require data we do not truly need?
-5. Can it be tested with a simpler implementation first?
-
-If a feature does not materially strengthen the core loop, defer it.
-
-## Primary architecture document
-
-See `APP_ARCHITECTURE.md` for the full system plan, phased architecture, domain model, backend services, data stores, AI stack, privacy model, deployment topology, analytics, monetization, and roadmap.
+See `APP_ARCHITECTURE.md`, `docs/PHASE_1_MVP.md`, `docs/API_CONTRACT.md` and `docs/BLENDER_FORM_PIPELINE.md`.
