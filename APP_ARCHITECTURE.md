@@ -28,7 +28,30 @@ WANT → LIVE → AWAKEN → SHARE → CREW → EVOLVE → NEXT SEASON
 
 The critical retention question is: **“Do you want to see what your Form becomes next?”**
 
-## 3. Domain hierarchy
+## 3. Production mandate
+
+The implementation target is a production-grade consumer application, not a throwaway prototype. Narrow product experiments are acceptable, but validated paths should be promotable rather than rewritten.
+
+Production-grade in this repository requires:
+
+- validated environment configuration and fail-closed startup,
+- explicit auth/authorization boundaries,
+- secure logging with secret redaction,
+- CORS/security headers/rate limits,
+- liveness and dependency readiness probes,
+- graceful shutdown,
+- durable MySQL canonical state,
+- Redis/BullMQ only for coordination and async execution,
+- bounded and validated AI provider calls,
+- retry-safe/idempotent writes where duplicate execution matters,
+- explicit media consent,
+- testable domain rules and integration boundaries,
+- mobile CPU/GPU/memory budgets for realtime 3D,
+- observability, moderation and privacy operations before public launch.
+
+No document or implementation should call the whole app “production-ready” until these paths are validated end-to-end under production-like conditions.
+
+## 4. Domain hierarchy
 
 1. `LifeMode` — current desired direction.
 2. `LifeSignal` / `Evidence` — chosen real-world moments and provenance.
@@ -42,7 +65,7 @@ The critical retention question is: **“Do you want to see what your Form becom
 10. `WorldMark` / `WorldPulse` — durable World trace and collective progress.
 11. `Entitlement` — server-authoritative paid expression/access.
 
-## 4. Identity authority
+## 5. Identity authority
 
 The architecture deliberately separates **interpretation** from **identity mutation**.
 
@@ -62,7 +85,7 @@ Every meaningful Form change should persist enough information to explain and re
 
 Evidence deletion triggers recomputation where supported.
 
-## 5. Current system architecture
+## 6. Current system architecture
 
 ```text
 Expo / React Native mobile
@@ -97,19 +120,42 @@ Auth   Product        Media         World/runtime
 - Redis + BullMQ
 - S3-compatible storage / MinIO locally
 - provider-neutral `@form/ai-gateway`
+- validated runtime `@form/config`
 - deterministic `@form/domain`
 - typed `@form/world-runtime`
+- Blender offline authoring/export tools
 - pnpm workspaces
 - Docker Compose
 - GitHub Actions
 
 Use a modular monolith plus asynchronous workers until scale/team boundaries justify service extraction.
 
-## 6. Current product modules
+## 7. Production API shell
+
+The Fastify API must boot through validated configuration rather than ad hoc `process.env` reads in business logic.
+
+Current production shell responsibilities:
+
+- fail startup when production uses the stub AI provider,
+- require explicitly approved browser origins in production,
+- configure trusted proxy behavior explicitly,
+- apply security headers,
+- apply CORS allowlisting,
+- apply Redis-backed global rate limiting,
+- use session-derived hashed rate-limit keys where possible,
+- redact authorization/cookie material from logs,
+- expose `/health/live`,
+- expose `/health/ready` backed by MySQL + Redis checks,
+- disable development-only preview paths in production,
+- respond to SIGTERM/SIGINT with graceful shutdown.
+
+The next production hardening step is write idempotency for retry-sensitive endpoints and broader per-route abuse budgets.
+
+## 8. Current product modules
 
 ### Identity/auth
 
-Adult-first account/session foundation, authorization, account/privacy lifecycle. Production still needs durable recovery/identity provider integration.
+Adult-first account/session foundation, authorization, account/privacy lifecycle. Production still needs durable Apple/Google or equivalent account-recovery integration.
 
 ### Life Mode
 
@@ -117,313 +163,513 @@ Stores what the user wants more/less of and desired feeling for a Season. Direct
 
 ### Evidence
 
-Stores user-chosen Life Signals, evidence level, media references, timestamps, visibility, AI classification and removal state.
+Stores user-chosen Life Signals and evidence metadata. Optional media is explicitly selected. Do not silently add background signals.
 
 ### Trait/Form engine
 
-Pure deterministic progression. AI output is input only. Form archetype and evolution must be reproducible.
+`@form/domain` owns deterministic scoring and archetype resolution. MySQL stores canonical state/history.
+
+Initial canonical archetypes in current code:
+
+- VECTOR
+- ECHO
+- FORGE
+- ORBIT
+- PULSE
+- HAVEN
 
 ### Crew
 
-Small relationship group, initially 2–5 people. Crew is the social core before any public follower graph.
-
-### Season
-
-Recurring evolution window with Life Mode, progress, recap and next-Season continuation.
+Relationship-scoped groups capped at five in the current MVP. Invitations and membership are canonical server state.
 
 ### Media/creative
 
-Explicit media selection, signed upload/download, participant consent, async reveal jobs and later Memory rendering.
+S3-compatible signed upload, media records, consent records, async reveal job records. Expensive generation remains asynchronous.
 
-### Events/analytics
+### Season
 
-Durable domain events for identity history plus privacy-conscious product analytics events.
+Current Season, Life Mode context, Form progression and recap facts.
 
-## 7. Blender and persistent 3D Form architecture
+### World runtime
 
-Blender is an **offline authoring tool**, not identity authority.
+`@form/world-runtime` owns deterministic realtime experience rules, body-action mapping and World completion. The first vertical slice is `SIGNAL_ZERO`.
 
-```text
-canonical Form state
-  → reviewed FormAssetManifest
-  → Blender-authored GLB
-  → mobile renderer
-```
+## 9. O architecture
 
-Each Form level should have a stable manifest and GLB. The first production target is `VECTOR I`.
-
-Required principles:
-
-- persistent silhouette/material language,
-- standardized `FORM_RIG`,
-- semantic action names,
-- reviewed ability mappings,
-- mobile GPU budget,
-- same identity across camera, reveal, Memory and World.
-
-A user cannot obtain another archetype/level merely by substituting an asset URL or manifest. Canonical state controls the allowed manifestation.
-
-See `docs/BLENDER_FORM_PIPELINE.md`.
-
-## 8. O architecture
-
-`O` is not a Form.
+`O` is not the user's Form.
 
 ```text
 FORM = USER IDENTITY
 O    = INTELLIGENCE / GUIDE / WORLD CHARACTER
 ```
 
-O can provide bounded dialogue, narrative reaction and a distinctive alien mathematical visual language. O must not become a hidden authority that decides Trait changes, consent, payments or World completion.
-
-The procedural Blender O generator is an engineering placeholder. Production O requires deliberate art direction, rigging, animation, audio and performance optimization.
-
-## 9. Realtime World Runtime
-
-The first realtime work is a narrow original micro-World called `SIGNAL_ZERO`.
+O should eventually operate as an orchestrator rather than a generic chatbot:
 
 ```text
-live camera
-  → pose landmarks
-  → gesture detector
-  → semantic body action
-  → Form animation + ability
-  → O/world reaction
-  → deterministic World reducer
-  → completion event
-  → Memory / durable history
+                    O
+                    │
+        ┌───────────┼────────────┐
+        ▼           ▼            ▼
+   CONTEXT       ACTION       NARRATIVE
+   BUILDER       ROUTER        LAYER
+        │           │            │
+        ▼           ▼            ▼
+Life Mode       capabilities    voice
+Form            camera          personality
+Crew            World           math language
+Season          explore         explanations
+History         memory
+Preferences     Crew
+Constraints
 ```
 
-`@form/world-runtime` should remain deterministic for interaction state. AI can adapt narration or creative output around that state but should not decide whether the user completed the World.
+LLM output is not sufficient by itself. Suggested actions must pass deterministic/business safety filters before display or execution.
 
-### First interaction
+O's visual language can use alien mathematics, vectors, orbital curves and geometric fields. That aesthetic is brand expression, not the canonical scoring engine.
+
+## 10. Capability architecture
+
+Long term, do not build permanent Food/Health/Explore/Game silos. Model capabilities that O and the Life Surface can invoke contextually.
+
+```ts
+interface Capability {
+  id: string;
+  inputs: string[];
+  permissions: string[];
+  contextTriggers: string[];
+  safetyClass: string;
+  costClass: string;
+}
+```
+
+Possible capabilities later:
+
+- `cook_from_kitchen`
+- `find_place`
+- `activate_form`
+- `crew_challenge`
+- `create_memory`
+- `play_motion_world`
+- `reflect_on_season`
+- `resurface_memory`
+
+These are future expansion primitives. Do not implement broad Food/Health/Explore product surfaces before the identity/Crew/Season loop is retained.
+
+## 11. AI architecture
+
+AI is a bounded capability, not canonical business logic.
+
+### Development
+
+`AI_PROVIDER=stub` is permitted for local development and deterministic test flows.
+
+### Production
+
+Production startup must reject `AI_PROVIDER=stub`.
+
+The current provider-neutral gateway supports an OpenAI-compatible HTTP adapter with:
+
+- configurable base URL,
+- explicit model selection,
+- API-key auth,
+- bounded timeout,
+- bounded retry,
+- JSON-only response request,
+- output validation/sanitization before returning structured classification or narration.
+
+The adapter currently supports:
+
+- Life Signal classification,
+- Life Mode label generation,
+- Season narrative generation.
+
+Creative rendering remains a separate asynchronous provider boundary.
+
+### Non-negotiable AI invariant
+
+> **AI interprets. Deterministic software decides identity progression.**
+
+AI cannot be final authority for:
+
+- archetype,
+- Form level/evolution,
+- payments/entitlements,
+- consent,
+- authorization,
+- Crew membership,
+- deterministic World completion.
+
+## 12. Camera as perception bus
+
+Do not create separate physical camera stacks for every feature.
+
+Conceptual pipeline:
 
 ```text
-VECTOR I activates
-  → open palm
-  → VECTOR FIELD
-  → O mathematical reaction
-  → hands together
-  → charge/finalize
-  → SIGNAL ZERO complete
-  → 7–10 second Memory/reveal
+CAMERA FRAME
+     │
+     ├── person detection
+     ├── pose landmarks
+     ├── hand landmarks
+     ├── segmentation
+     ├── object/scene understanding
+     └── optional depth
+            │
+            ▼
+      PERCEPTION STATE
+```
+
+Consumers can subscribe to the perception state:
+
+- Form activation → pose/segmentation,
+- World runtime → pose/hands/depth,
+- Memory → recording/scene/consent,
+- later contextual capabilities → only the sensors explicitly requested by the user.
+
+No hidden continuous surveillance.
+
+## 13. Blender / Form manifestation architecture
+
+Blender is an offline authoring tool.
+
+```text
+canonical Form state
+  → reviewed FormAssetManifest
+  → Blender-authored rig/mesh/material/actions
+  → GLB export
+  → mobile renderer
+```
+
+The runtime never asks Blender to decide who the user is.
+
+Standard armature: `FORM_RIG`.
+
+The first production art target is `VECTOR I`, not six Forms at once.
+
+See `docs/BLENDER_FORM_PIPELINE.md`.
+
+## 14. First realtime World: SIGNAL_ZERO
+
+The first magic test remains intentionally small:
+
+```text
+Camera
++
+one person
++
+pose tracking
++
+VECTOR I
++
+3 body-driven abilities
++
+one ~45-second encounter
+```
+
+Target loop:
+
+```text
+camera sees user
+  → pose landmarks
+  → semantic body action
+  → VECTOR I animation/ability
+  → SIGNAL_ZERO deterministic reducer
+  → World completion
+  → durable event
+  → short Memory/reveal
   → share
 ```
 
-This is a validation instrument, not permission to build broad AR multiplayer.
+No large multiplayer world, live generative video, huge city or licensed superhero IP is needed for this test.
 
-## 10. AI architecture
+The product innovation is not body tracking itself; it is that the user's **persistent earned Form** enters a World and the result joins their long-term history.
 
-Use a provider-neutral AI Gateway.
+## 15. Life Surface
 
-AI may handle:
+Long-term UX direction is one continuous perceived surface rather than many disconnected category tabs.
 
-- Life Mode language interpretation,
-- Life Signal classification,
-- safe suggestions,
-- recap narration,
-- concept/texture/animation ideation,
-- reveal/Memory image-video rendering,
-- bounded World adaptation,
-- bounded O dialogue.
-
-AI must not be final authority for:
-
-- Trait mutation,
-- Form archetype/level,
-- authorization,
-- consent,
-- Crew membership,
-- payment/entitlement,
-- deterministic World completion,
-- irreversible moderation without policy controls.
-
-## 11. Media, privacy and consent
-
-Core principle:
-
-> **Only the moments you choose count.**
-
-Initial product should not require background location, contact-book upload, always-on microphone, unrestricted photo scanning or hidden health access.
-
-Media is explicitly selected. Multi-person creative media requires participant consent scope. Signed URLs should be short-lived. Account/media deletion and consent revocation require documented lifecycle behavior.
-
-Never infer psychological identity from facial appearance.
-
-## 12. Async rendering
-
-Expensive creative work is asynchronous.
+Internal state can still be modular:
 
 ```text
-request
-  → validate identity + ownership + consent + entitlement
-  → queue
-  → renderer adapter
-  → safety/quality checks
-  → persist output asset
-  → signed delivery
+CALM
+ ↓
+O_INTERACTION
+ ↓
+CAMERA
+ ↓
+FORM_ACTIVE
+ ↓
+WORLD
+ ↓
+RESULT
+ ↓
+MEMORY
+ ↓
+CALM
 ```
 
-Use deterministic realtime effects for routine interactions. Reserve expensive generative image/video work for reveals, Memories and finales where emotional/revenue value justifies cost.
+The current tabbed MVP is implementation scaffolding and can evolve toward this surface after the core interactions work.
 
-## 13. Mobile information architecture
+The primary user question should become:
 
-Current core surfaces:
+> **What is possible for me right now?**
 
-- **You** — Form, traits, explanations/history.
-- **Camera** — activation/reveal and later live runtime.
-- **Crew** — close-friend membership/progress.
-- **Season** — current direction and recap.
+O may compress choices to three options, such as Easy / Interesting / Unexpected.
 
-Worlds should initially appear contextually rather than as a permanent content feed.
+## 16. Durable Life Archive model
 
-## 14. Monetization
+The long-term moat is not the LLM. It is the accumulated user-controlled history.
 
-Core participation remains free enough to support network effects:
+Conceptual graph:
+
+```text
+                   USER
+                    │
+          ┌─────────┼─────────┐
+          ▼         ▼         ▼
+       WANTS    RELATIONSHIPS  ACTIONS
+          │         │          │
+          ▼         ▼          ▼
+      LIFE MODE    CREW     EXPERIENCES
+          │         │          │
+          └─────────┼──────────┘
+                    ▼
+                   FORM
+                    │
+              FORM HISTORY
+                    │
+        ┌───────────┼───────────┐
+        ▼           ▼           ▼
+     MEMORY       SEASON       WORLD
+        │                       │
+        └──────────────┬────────┘
+                       ▼
+                  LIFE ARCHIVE
+```
+
+Keep MySQL as the source of truth initially. Do not introduce a graph database merely because the conceptual model is a graph.
+
+Long-term interaction:
+
+> “O, show me who I was when I was nineteen.”
+
+## 17. Event architecture
+
+Durable history events should include examples such as:
+
+- `life_mode_started`
+- `life_signal_recorded`
+- `life_signal_removed`
+- `trait_vector_changed`
+- `form_awakened`
+- `form_evolved`
+- `crew_created`
+- `crew_joined`
+- `experience_started`
+- `experience_completed`
+- `world_entered`
+- `world_completed`
+- `world_mark_earned`
+- `memory_created`
+- `season_completed`
+
+Events must never bypass canonical authorization/consent/state rules.
+
+## 18. Privacy and safety
+
+Core user line:
+
+> **You decide what becomes part of your Form.**
+
+Initial architecture rules:
+
+- no background location requirement,
+- no contact-book upload by default,
+- no hidden mic,
+- no face-based personality inference,
+- no medical/mental-health diagnosis,
+- inspectable “Why my Form changed” history,
+- evidence removal/recomputation,
+- adult-first launch,
+- multi-person creative output only with participant consent,
+- additive evolution rather than shame/degradation.
+
+Health-related capabilities, if built later, begin as lifestyle/wellbeing and must not become diagnosis/treatment without a separate high-safety architecture.
+
+## 19. Monetization architecture
+
+Core participation remains free enough for network effects.
+
+Free examples:
 
 - Life Mode,
 - Life Signals,
-- first awakening,
+- awakening,
 - base Form,
 - Crew participation,
-- basic evolution,
-- basic recap/share.
+- basic camera manifestation,
+- basic Season recap,
+- sharing.
 
-Premium upgrades expression:
+Premium expression can include:
 
-- higher-quality cinematics,
-- premium manifestations,
-- advanced Memories,
-- Crew/Season finales,
-- later World passes/expression,
-- gifting.
+- high-quality cinematics,
+- premium manifestation states,
+- richer Memory renders,
+- deeper history,
+- premium Season/Crew finales,
+- later World expression.
 
-No randomized loot boxes or pay-to-determine identity.
+> **Payment upgrades expression, not participation.**
 
-## 15. Analytics and validation
+Payments and entitlements are server-authoritative. No LLM may grant paid state.
 
-Do not optimize for passive session duration.
+## 20. Production testing strategy
 
-Measure:
+### Domain tests
 
-- onboarding completion,
-- first Life Signal,
-- awakening completion/time,
-- reveal completion/share,
-- recipient signup conversion,
-- Crew formation/shared activity,
-- World start/completion,
-- Memory share,
-- D1/D7/D30,
+Required for:
+
+- scoring,
+- awakening,
+- Form resolution,
+- recomputation,
+- evidence multipliers,
+- deterministic World reducer,
+- gesture/action mapping.
+
+### API integration tests
+
+Required for:
+
+- auth/session resolution,
+- season ownership,
+- Life Signal ownership/deletion,
+- Crew invite/join authorization,
+- consent enforcement,
+- reveal eligibility,
+- production configuration failure cases,
+- rate limiting,
+- readiness behavior,
+- write idempotency once implemented.
+
+### Infrastructure/e2e
+
+Run production-like MySQL, Redis and object storage. Validate retry and shutdown behavior, not only happy-path HTTP responses.
+
+### Mobile performance
+
+For realtime camera/3D, profile on mid-range physical Android and iOS hardware. Track frame time, memory, thermal behavior, startup, asset size and battery impact.
+
+## 21. Validation metrics
+
+Core product metrics:
+
+- Awakening completion,
+- reveal share rate,
+- share → install,
+- invite → Form discovery,
+- Form → Crew formation,
+- Crew first-experience completion,
+- Memory creation,
+- D7 return,
 - Season completion,
-- next-Season start,
-- payer conversion and generation gross margin.
+- Season 2 start.
 
-A beautiful reveal without return behavior is a novelty, not product-market fit.
+Deepest metric:
 
-## 16. Build order
+> **Do users want to know what they become next?**
 
-### Stage A — identity foundation
+If they only say “cool AI character,” the product is a filter rather than a persistent identity network.
 
-Life Mode → chosen evidence → deterministic traits → Unknown Form → awakening → explanations/removal.
+## 22. Current implementation sequence
 
-### Stage B — social foundation
+1. Production config/security/readiness/graceful shutdown.
+2. Durable auth/account recovery.
+3. Write idempotency and authorization tests.
+4. Life Mode / Life Signal / explainable Form hardening.
+5. Production VECTOR I Blender asset + reveal.
+6. Crew progress and social acquisition loop.
+7. Live camera pose pipeline.
+8. VECTOR I semantic ability mapping.
+9. SIGNAL_ZERO runtime integration.
+10. World completion → durable event → Memory/reveal → share.
+11. Season recap and next-season loop.
+12. Push lifecycle messaging.
+13. Billing/receipt verification for premium expression.
+14. Moderation, deletion/privacy operations and observability.
+15. Production deployment + e2e/load/failure testing.
+16. Only after retention: broader original/place/campus/creator Worlds.
 
-Crew create/invite/join, relationship-scoped activity and shared retention.
+## 23. Explicitly deferred
 
-### Stage C — expression
-
-One excellent `VECTOR I` reveal and persistent Blender manifestation.
-
-### Stage D — realtime proof
-
-Live pose tracking, mobile 3D renderer and `SIGNAL_ZERO`.
-
-### Stage E — Memory/share
-
-Turn completed real/realtime experiences into short, high-quality shareable Memories.
-
-### Stage F — Seasons + monetization
-
-Prove next-Season continuation; then add paid premium expression with server-authoritative receipts/entitlements.
-
-### Stage G — Worlds
-
-Only after core retention: original → place/campus → creator/music → major licensed IP.
-
-## 17. Explicitly deferred
-
-Until the core loop is validated, do not expand into:
+Until the core loop is proven, do not build:
 
 - public algorithmic feed,
 - open DMs,
-- follower/creator economy,
-- Food product,
-- Health/medical coaching,
+- creator marketplace/economy,
+- Food super-app surface,
+- Health diagnosis/coach,
 - always-on location graph,
-- automatic contacts,
-- broad AR multiplayer,
-- marketplace/token/NFT economy,
-- major IP partner infrastructure.
+- automatic contacts ingestion,
+- giant AR multiplayer,
+- broad unrestricted AI companion,
+- major licensed IP infrastructure.
 
-## 18. Engineering invariants
+## 24. Failure modes
 
-1. AI never directly mutates canonical identity.
-2. Trait/Form progression is deterministic and versioned.
-3. Every meaningful identity change is explainable.
-4. User participation does not require background surveillance.
-5. Payment and entitlements are server authoritative.
-6. Multi-person creative media follows consent rules.
-7. Form visual identity persists across manifestations.
-8. Blender is manifestation tooling, not identity logic.
-9. Worlds never overwrite base Form identity.
-10. World completion is deterministic.
-11. Expensive generation runs asynchronously.
-12. Durable history is modeled as events/state, not disposable feed content.
-13. Redis is coordination/cache, never canonical state.
-14. O is a bounded character/intelligence, not a hidden identity authority.
+### Cool reveal, no return
 
-## 19. Long-term platform
+Fix the Crew/Season/history loop before adding more rendering styles.
 
-If the core loop reaches product-market fit, the platform grows into four connected but logically separated graphs:
+### AI becomes identity authority
 
-- **Life Graph** — user-controlled meaningful experiences.
-- **Relationship Graph** — Crew/shared history.
-- **Identity Graph** — Form progression, manifestations, Seasons, World Marks.
-- **Experience Graph** — Worlds, places, events, missions and Memories.
+Reject the architecture. Structured AI classification must feed deterministic rules.
 
-This can eventually support contextual discovery, cross-World identity, creator/partner experiences, physical/digital collectibles and a long-term Life Archive.
+### Realtime Form feels laggy
 
-A multi-year user should be able to see an earned history such as:
+Reduce geometry/effects/model complexity before expanding Worlds.
 
-```text
-2026  UNKNOWN → VECTOR I
-2027  VECTOR II / ORBIT influence
-2028  VECTOR ASCENDED
-```
+### Users perceive surveillance
 
-and eventually choose **PLAY MY STORY**, where AI renders structured, user-controlled history into a cinematic representation.
+Default to explicit capture and visible evidence provenance.
 
-## 20. Final thesis
+### Worlds eclipse the core product
+
+Require existing Form identity and durable post-World history.
+
+### AI/render cost overwhelms economics
+
+Use realtime deterministic effects for routine interactions and expensive generation only for high-value outputs.
+
+### Production instability
+
+Fail startup on bad configuration, enforce readiness/liveness, use bounded retries, rate limits, idempotency and graceful shutdown, and test dependency failure rather than relying on optimistic happy paths.
+
+## 25. Final architectural thesis
 
 ```text
-Life Mode
-   ↓
-Chosen Life Signals
-   ↓
-AI interpretation
-   ↓
-Deterministic Trait Engine
-   ↓
-Persistent Form
-   ├── Blender manifestation
-   ├── Camera/reveal
-   ├── Crew
-   ├── Seasons
-   ├── Memories
-   └── Worlds
+User chooses direction
+        ↓
+User lives real life
+        ↓
+User chooses what counts
+        ↓
+AI interprets
+        ↓
+Deterministic software updates Trait state
+        ↓
+Persistent Form evolves
+        ↓
+Form manifests through camera/Blender
+        ↓
+Crew + Worlds create experiences
+        ↓
+Real outcomes become Memories/history
+        ↓
+Season closes
+        ↓
+Next direction begins
 ```
 
-The person remains the center—not the AI model, 3D engine, content partner or feed.
-
-> **Your life creates your Form. Your people create your Crew. Your experiences create your history. Worlds come and go. Your Form remembers.**
+> **Your life creates your Form. O helps you discover what comes next. Your people become your Crew. Your experiences become Memories. Every month becomes a Season. Worlds end. Your Form remembers.**
