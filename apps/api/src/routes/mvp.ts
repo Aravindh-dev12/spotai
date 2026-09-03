@@ -216,3 +216,8 @@ export async function registerMvpRoutes(app: FastifyInstance) {
     return getSeasonRecap(userId, parsed.data.id);
   });
 }
+
+export async function closeMvpInfrastructure() {
+  await jobs.close();
+  if (redis.status !== 'end') await redis.quit();
+}

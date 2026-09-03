@@ -12,7 +12,8 @@ import {
   TRAIT_RULE_VERSION,
   type TraitVector
 } from '@form/domain';
-import { StubAiGateway } from '@form/ai-gateway';
+import { createAiGateway } from '@form/ai-gateway';
+import { loadConfig } from '@form/config';
 import {
   pool,
   createDevUser,
@@ -31,10 +32,21 @@ import {
   createCrew
 } from '@form/db';
 import { appendDomainEvent, trackEvent } from '@form/db/features';
-import { registerMvpRoutes, authenticatedUserId } from './routes/mvp.js';
+import { registerMvpRoutes, authenticatedUserId, closeMvpInfrastructure } from './routes/mvp.js';
+import { registerProductionShell } from './production.js';
 
-const app = Fastify({ logger: true, bodyLimit: 1_000_000 });
-const ai = new StubAiGateway();
+const config = loadConfig();
+const app = Fastify({
+  logger: {
+    level: config.nodeEnv === 'production' ? 'info' : 'debug',
+    redact: ['req.headers.authorization', 'req.headers.cookie', 'res.headers["set-cookie"]']
+  },
+  bodyLimit: config.apiBodyLimitBytes,
+  trustProxy: config.trustProxy
+});
+const ai = createAiGateway(config.ai);
+
+await registerProductionShell(app, config);
 
 async function recompute(userId: string, seasonId: string, context: {
   changeType: 'signal_added'|'signal_removed'|'recomputed';
@@ -81,13 +93,13 @@ async function recompute(userId: string, seasonId: string, context: {
   return state;
 }
 
-app.get('/health', async () => {
+app.get('/health', { config: { rateLimit: false } }, async () => {
   await pool.query('SELECT 1');
   return { ok: true, service: 'form-api', database: 'mysql' };
 });
 
 app.post('/v1/dev/users', async (request, reply) => {
-  if (process.env.NODE_ENV === 'production') return reply.code(404).send({ error: 'not_found' });
+  if (config.nodeEnv === 'production') return reply.code(404).send({ error: 'not_found' });
   const body = z.object({ handle: z.string().min(2).max(30).optional() }).safeParse(request.body ?? {});
   if (!body.success) return reply.code(400).send({ error: 'invalid_body', details: body.error.flatten() });
   return reply.code(201).send(await createDevUser(body.data.handle));
@@ -226,6 +238,7 @@ app.post('/v1/crews', async (request, reply) => {
 });
 
 app.post('/v1/life-signals/preview', async (request, reply) => {
+  if (config.nodeEnv === 'production') return reply.code(404).send({ error: 'not_found' });
   const parsed = lifeSignalSchema.safeParse(request.body);
   if (!parsed.success) return reply.code(400).send({ error: 'invalid_signal', details: parsed.error.flatten() });
   const classification = await ai.classifyLifeSignal(parsed.data);
@@ -236,10 +249,35 @@ app.post('/v1/life-signals/preview', async (request, reply) => {
 await registerMvpRoutes(app);
 
 app.setErrorHandler((error, request, reply) => {
-  request.log.error(error);
+  request.log.error({ error, requestId: request.id }, 'request failed');
   if (reply.sent) return;
-  return reply.code(500).send({ error: 'internal_error' });
+  if (String(error).includes('origin_not_allowed')) return reply.code(403).send({ error: 'origin_not_allowed' });
+  return reply.code(500).send({ error: 'internal_error', requestId: request.id });
 });
 
-const port = Number(process.env.API_PORT ?? 3000);
-await app.listen({ port, host: '0.0.0.0' });
+app.addHook('onClose', async () => {
+  await closeMvpInfrastructure();
+  await pool.end();
+});
+
+let shuttingDown = false;
+async function shutdown(signal: string) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  app.log.info({ signal }, 'graceful shutdown started');
+  const forceExit = setTimeout(() => process.exit(1), 15_000);
+  forceExit.unref();
+  try {
+    await app.close();
+    clearTimeout(forceExit);
+    process.exit(0);
+  } catch (error) {
+    app.log.error({ error }, 'graceful shutdown failed');
+    process.exit(1);
+  }
+}
+
+process.once('SIGTERM', () => void shutdown('SIGTERM'));
+process.once('SIGINT', () => void shutdown('SIGINT'));
+
+await app.listen({ port: config.apiPort, host: '0.0.0.0' });
