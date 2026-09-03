@@ -4,16 +4,43 @@ const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
 const TOKEN_KEY = 'spotai.sessionToken';
 const USER_KEY = 'spotai.userId';
 const SEASON_KEY = 'spotai.activeSeasonId';
+const REQUEST_TIMEOUT_MS = 15_000;
+
+export class ApiError extends Error {
+  constructor(public code: string, public status: number, public requestId?: string) {
+    super(code);
+    this.name = 'ApiError';
+  }
+}
 
 async function request<T>(path: string, init: RequestInit = {}, authenticated = true): Promise<T> {
   const token = authenticated ? await AsyncStorage.getItem(TOKEN_KEY) : null;
-  const response = await fetch(`${API_URL}${path}`, {
-    ...init,
-    headers: { 'content-type': 'application/json', ...(token ? { authorization: `Bearer ${token}` } : {}), ...(init.headers ?? {}) }
-  });
-  const body = await response.json();
-  if (!response.ok) throw new Error(body?.error ?? `request_failed_${response.status}`);
-  return body as T;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    const response = await fetch(`${API_URL}${path}`, {
+      ...init,
+      signal: controller.signal,
+      headers: { 'content-type': 'application/json', ...(token ? { authorization: `Bearer ${token}` } : {}), ...(init.headers ?? {}) }
+    });
+    const requestId = response.headers.get('x-request-id') ?? undefined;
+    const text = await response.text();
+    let body: any = null;
+    if (text) {
+      try { body = JSON.parse(text); } catch { body = { error: `invalid_response_${response.status}` }; }
+    }
+    if (response.status === 401 && authenticated) {
+      await AsyncStorage.multiRemove([TOKEN_KEY, USER_KEY, SEASON_KEY]);
+    }
+    if (!response.ok) throw new ApiError(body?.error ?? `request_failed_${response.status}`, response.status, requestId);
+    return body as T;
+  } catch (error) {
+    if (error instanceof ApiError) throw error;
+    if (error instanceof Error && error.name === 'AbortError') throw new ApiError('request_timeout', 0);
+    throw new ApiError('network_unavailable', 0);
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 export async function signUp(input: { handle?: string; birthDate: string }) {
@@ -89,9 +116,15 @@ export async function createUploadIntent(contentType: 'image/jpeg'|'image/png'|'
 export async function uploadFile(uploadUrl: string, uri: string, contentType: string) {
   const local = await fetch(uri);
   const blob = await local.blob();
-  const response = await fetch(uploadUrl, { method: 'PUT', headers: { 'content-type': contentType }, body: blob });
-  if (!response.ok) throw new Error(`upload_failed_${response.status}`);
-  return blob.size;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 60_000);
+  try {
+    const response = await fetch(uploadUrl, { method: 'PUT', signal: controller.signal, headers: { 'content-type': contentType }, body: blob });
+    if (!response.ok) throw new ApiError(`upload_failed_${response.status}`, response.status);
+    return blob.size;
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 export async function completeMedia(mediaId: string, byteSize?: number) { return request(`/v1/media/${mediaId}/complete`, { method: 'POST', body: JSON.stringify({ byteSize }) }); }
