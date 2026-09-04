@@ -1,12 +1,12 @@
 import { Worker } from 'bullmq';
 import { Redis } from 'ioredis';
-import { StubAiGateway, type AiGateway } from '@form/ai-gateway';
+import { createAiGateway, type AiGateway } from '@form/ai-gateway';
 import { loadConfig } from '@form/config';
 import { updateRevealJob } from '@form/db/features';
 
 const config = loadConfig();
-const connection = new Redis(config.REDIS_URL, { maxRetriesPerRequest: null, enableReadyCheck: true });
-const ai: AiGateway = new StubAiGateway();
+const connection = new Redis(config.redisUrl, { maxRetriesPerRequest: null, enableReadyCheck: true });
+const ai: AiGateway = createAiGateway(config.ai);
 
 const worker = new Worker('form-jobs', async job => {
   switch (job.name) {
@@ -39,7 +39,10 @@ worker.on('completed', job => console.info(JSON.stringify({ level: 'info', event
 worker.on('failed', (job, error) => console.error(JSON.stringify({ level: 'error', event: 'job_failed', jobId: job?.id, name: job?.name, error: error.message })));
 worker.on('error', error => console.error(JSON.stringify({ level: 'error', event: 'worker_error', error: error.message })));
 
+let shuttingDown = false;
 async function shutdown(signal: string) {
+  if (shuttingDown) return;
+  shuttingDown = true;
   console.info(JSON.stringify({ level: 'info', event: 'worker_shutdown', signal }));
   await worker.close();
   await connection.quit();
@@ -49,4 +52,4 @@ async function shutdown(signal: string) {
 process.once('SIGTERM', () => void shutdown('SIGTERM'));
 process.once('SIGINT', () => void shutdown('SIGINT'));
 
-console.info(JSON.stringify({ level: 'info', event: 'worker_started', queue: 'form-jobs', environment: config.NODE_ENV }));
+console.info(JSON.stringify({ level: 'info', event: 'worker_started', queue: 'form-jobs', environment: config.nodeEnv }));
