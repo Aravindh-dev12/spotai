@@ -1,22 +1,21 @@
-import { describe, expect, it } from 'vitest';
+import assert from 'node:assert/strict';
+import test from 'node:test';
 import { deriveNearSessionStatus } from './near-transport.js';
 
-describe('deriveNearSessionStatus', () => {
-  it('stays authorized until a participant actually starts transport', () => {
-    expect(deriveNearSessionStatus(['idle', 'idle'])).toBe('authorized');
-  });
+test('transport stays authorized until a participant starts', () => {
+  assert.equal(deriveNearSessionStatus(['idle', 'idle']), 'authorized');
+});
 
-  it('enters connecting when either participant reports transport progress', () => {
-    expect(deriveNearSessionStatus(['connecting', 'idle'])).toBe('connecting');
-    expect(deriveNearSessionStatus(['connected', 'connecting'])).toBe('connecting');
-  });
+test('transport enters connecting when either participant reports progress', () => {
+  assert.equal(deriveNearSessionStatus(['connecting', 'idle']), 'connecting');
+  assert.equal(deriveNearSessionStatus(['connected', 'connecting']), 'connecting');
+});
 
-  it('only becomes connected when both participants report connected', () => {
-    expect(deriveNearSessionStatus(['connected', 'connected'])).toBe('connected');
-  });
+test('transport only becomes connected when both participants report connected', () => {
+  assert.equal(deriveNearSessionStatus(['connected', 'connected']), 'connected');
+});
 
-  it('fails closed on a failed participant and ends when either participant ends', () => {
-    expect(deriveNearSessionStatus(['connected', 'failed'])).toBe('failed');
-    expect(deriveNearSessionStatus(['connected', 'ended'])).toBe('ended');
-  });
+test('transport fails closed and ends when either participant ends', () => {
+  assert.equal(deriveNearSessionStatus(['connected', 'failed']), 'failed');
+  assert.equal(deriveNearSessionStatus(['connected', 'ended']), 'ended');
 });
