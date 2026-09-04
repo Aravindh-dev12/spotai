@@ -2,7 +2,7 @@ import type { FastifyInstance, FastifyReply } from 'fastify';
 import { z } from 'zod';
 import { loadConfig } from '@form/config';
 import { transportStateReportSchema } from '@form/domain';
-import { getNearTransportState, reportNearTransportState } from '@form/db/transport';
+import { getNearTransportState, listActiveNearSessions, reportNearTransportState } from '@form/db/transport';
 import { appendDomainEvent, trackEvent } from '@form/db/features';
 import { authenticatedUserId } from './mvp.js';
 import { registerSignalingRoutes } from './signaling.js';
@@ -20,6 +20,12 @@ export async function registerTransportRoutes(app: FastifyInstance) {
   const config = loadConfig();
   await registerSignalingRoutes(app, config);
   await registerIceRoutes(app, config);
+
+  app.get('/v1/near-sessions/active', async (request, reply) => {
+    const userId = await authenticatedUserId(request);
+    if (!userId) return reply.code(401).send({ error: 'unauthorized' });
+    return { sessions: await listActiveNearSessions(userId) };
+  });
 
   app.get('/v1/near-sessions/:id/transport', async (request, reply) => {
     const userId = await authenticatedUserId(request);
