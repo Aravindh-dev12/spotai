@@ -102,6 +102,53 @@ export async function getFormHistory() {
   return request<{ history: FormHistoryItem[] }>(`/v1/form/history?seasonId=${encodeURIComponent(seasonId)}`);
 }
 
+export async function listConnections() {
+  return request<{ connections: Connection[] }>('/v1/connections');
+}
+
+export async function createConnection(otherUserId: string) {
+  return request<{ id: string; status: ConnectionStatus; created: boolean; createdByUserId: string }>('/v1/connections', {
+    method: 'POST',
+    body: JSON.stringify({ otherUserId, clientRequestId: crypto.randomUUID() })
+  });
+}
+
+export async function respondToConnection(connectionId: string, action: 'accept' | 'decline') {
+  return request<{ connectionId: string; status: ConnectionStatus; accepted: boolean; alreadyResolved: boolean }>(`/v1/connections/${encodeURIComponent(connectionId)}/respond`, {
+    method: 'POST',
+    body: JSON.stringify({ action })
+  });
+}
+
+export async function setPresence(connectionId: string, state: DeclaredPresenceState, representation: PresenceRepresentation = 'signal', ttlSeconds = 1800) {
+  return request<Presence>(`/v1/connections/${encodeURIComponent(connectionId)}/presence`, {
+    method: 'PUT',
+    body: JSON.stringify({ state, representation, ttlSeconds })
+  });
+}
+
+export async function createNearInvite(connectionId: string, level: NearLevel) {
+  return request<NearInvite & { reused: boolean }>(`/v1/connections/${encodeURIComponent(connectionId)}/near-invites`, {
+    method: 'POST',
+    body: JSON.stringify({ clientRequestId: crypto.randomUUID(), level })
+  });
+}
+
+export async function listPendingNearInvites() {
+  return request<{ invites: NearInvite[] }>('/v1/near-invites/pending');
+}
+
+export async function respondToNearInvite(inviteId: string, action: 'accept' | 'decline') {
+  return request<{ accepted: boolean; connectionId: string; session?: NearSession | null }>(`/v1/near-invites/${encodeURIComponent(inviteId)}/respond`, {
+    method: 'POST',
+    body: JSON.stringify({ action })
+  });
+}
+
+export async function getNearSession(sessionId: string) {
+  return request<NearSession>(`/v1/near-sessions/${encodeURIComponent(sessionId)}`);
+}
+
 export async function listCrews() { return request<{ crews: Crew[] }>('/v1/crews'); }
 export async function createCrew(name?: string) { return request<Crew>('/v1/crews', { method: 'POST', body: JSON.stringify({ name }) }); }
 export async function createCrewInvite(crewId: string) { return request<{ token: string; deepLink: string }>(`/v1/crews/${crewId}/invites`, { method: 'POST', body: '{}' }); }
@@ -138,6 +185,67 @@ export async function createReveal(sourceMediaId: string) {
 export async function getSeasonRecap() {
   const { seasonId } = await ensureSession();
   return request<SeasonRecap>(`/v1/seasons/${seasonId}/recap`);
+}
+
+export type ConnectionStatus = 'pending' | 'active' | 'blocked' | 'ended';
+export type DeclaredPresenceState = 'away' | 'around' | 'present';
+export type PresenceState = DeclaredPresenceState | 'near' | 'together';
+export type PresenceRepresentation = 'signal' | 'voice' | 'camera' | 'shared_reality';
+export type NearLevel = 'voice' | 'camera' | 'shared_reality';
+
+export interface Presence {
+  state: PresenceState;
+  representation: PresenceRepresentation;
+  expiresAt: string | null;
+}
+
+export interface ConnectionPermissions {
+  sharePresence: boolean;
+  voice: boolean;
+  camera: boolean;
+  sharedReality: boolean;
+  aiMemory: boolean;
+  privateMoments: boolean;
+  matureThemes: boolean;
+  sensitiveMedia: boolean;
+  recording: 'never' | 'ask_every_time';
+}
+
+export interface Connection {
+  id: string;
+  status: ConnectionStatus;
+  createdByUserId: string;
+  createdAt: string | null;
+  activatedAt: string | null;
+  myRole: 'initiator' | 'invitee';
+  myMembershipStatus: 'active' | 'invited' | 'left';
+  other: {
+    userId: string;
+    handle: string | null;
+    membershipStatus: 'active' | 'invited' | 'left';
+    presence: Presence;
+  };
+  permissions: ConnectionPermissions | null;
+}
+
+export interface NearInvite {
+  id: string;
+  connectionId: string;
+  inviterUserId: string;
+  inviterHandle: string | null;
+  level: NearLevel;
+  expiresAt: string | null;
+  createdAt: string | null;
+}
+
+export interface NearSession {
+  id: string;
+  connectionId: string;
+  level: NearLevel;
+  status: 'authorized' | 'connecting' | 'connected' | 'ended' | 'failed';
+  createdAt?: string | null;
+  connectedAt?: string | null;
+  endedAt?: string | null;
 }
 
 export interface FormState {
