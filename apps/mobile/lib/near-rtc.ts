@@ -90,17 +90,17 @@ export class NearRtcSessionController {
       this.peer = peer;
       this.localStream.getTracks().forEach(track => peer.addTrack(track, this.localStream!));
 
-      peer.addEventListener('icecandidate', event => {
+      peer.onicecandidate = event => {
         if (!event.candidate || this.closed) return;
         void sendNearSignal(this.sessionId, 'ice', JSON.stringify(event.candidate)).catch(error => this.fail(error));
-      });
-      peer.addEventListener('track', event => {
+      };
+      peer.ontrack = event => {
         const stream = event.streams?.[0];
         if (!stream) return;
         this.remoteStream = stream;
         this.callbacks.onRemoteStream?.(stream);
-      });
-      peer.addEventListener('connectionstatechange', () => {
+      };
+      peer.onconnectionstatechange = () => {
         const state = peer.connectionState;
         if (state === 'connected' && !this.connectedReported) {
           this.connectedReported = true;
@@ -111,7 +111,7 @@ export class NearRtcSessionController {
         } else if (state === 'closed' && !this.closed) {
           void this.finish(false);
         }
-      });
+      };
 
       await reportNearTransport(this.sessionId, 'connecting');
       this.callbacks.onState?.('connecting');
