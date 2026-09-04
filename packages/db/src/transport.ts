@@ -14,26 +14,31 @@ function iso(value: unknown): string | null {
   return Number.isNaN(date.getTime()) ? null : date.toISOString();
 }
 
-async function assertSessionParticipant(connection: PoolConnection, userId: string, sessionId: string) {
-  const [rows] = await connection.execute<RowDataPacket[]>(
-    `SELECT ns.id, ns.connection_id AS connectionId, ns.level, ns.status,
-            ns.connected_at AS connectedAt, ns.ended_at AS endedAt
-     FROM near_sessions ns
-     JOIN connection_participants cp ON cp.connection_id = ns.connection_id
-       AND cp.user_id = ? AND cp.membership_status = 'active'
-     WHERE ns.id = ? LIMIT 1 FOR UPDATE`,
-    [userId, sessionId]
-  );
-  const row = rows[0] as Row | undefined;
-  if (!row) throw new Error('near_session_not_found');
+function mapSession(row: Row) {
   return {
     id: String(row.id),
     connectionId: String(row.connectionId),
     level: String(row.level) as 'voice' | 'camera' | 'shared_reality',
     status: String(row.status) as NearSessionStatus,
+    createdAt: iso(row.createdAt),
     connectedAt: iso(row.connectedAt),
     endedAt: iso(row.endedAt)
   };
+}
+
+async function loadSessionParticipant(connection: PoolConnection, userId: string, sessionId: string, lock = false) {
+  const [rows] = await connection.execute<RowDataPacket[]>(
+    `SELECT ns.id, ns.connection_id AS connectionId, ns.level, ns.status,
+            ns.created_at AS createdAt, ns.connected_at AS connectedAt, ns.ended_at AS endedAt
+     FROM near_sessions ns
+     JOIN connection_participants cp ON cp.connection_id = ns.connection_id
+       AND cp.user_id = ? AND cp.membership_status = 'active'
+     WHERE ns.id = ? LIMIT 1${lock ? ' FOR UPDATE' : ''}`,
+    [userId, sessionId]
+  );
+  const row = rows[0] as Row | undefined;
+  if (!row) throw new Error('near_session_not_found');
+  return mapSession(row);
 }
 
 async function ensureTransportParticipants(connection: PoolConnection, sessionId: string, connectionId: string) {
@@ -63,13 +68,12 @@ async function applySessionPresence(
 ) {
   if (status === 'connected') {
     const state = level === 'shared_reality' ? 'together' : 'near';
-    const representation = level;
     await connection.execute(
       `UPDATE connection_presence cp
        JOIN connection_participants member ON member.connection_id = cp.connection_id AND member.user_id = cp.user_id
        SET cp.state = ?, cp.representation = ?, cp.expires_at = NULL
        WHERE cp.connection_id = ? AND member.membership_status = 'active'`,
-      [state, representation, connectionId]
+      [state, level, connectionId]
     );
     return;
   }
@@ -95,13 +99,25 @@ export async function reportNearTransportState(input: {
   const connection = await pool.getConnection();
   try {
     await connection.beginTransaction();
-    const session = await assertSessionParticipant(connection, input.userId, input.sessionId);
+    const session = await loadSessionParticipant(connection, input.userId, input.sessionId, true);
+    await ensureTransportParticipants(connection, input.sessionId, session.connectionId);
+
     if (session.status === 'ended' || session.status === 'failed') {
+      const [terminalRows] = await connection.execute<RowDataPacket[]>(
+        `SELECT user_id AS userId, state FROM near_session_transport_participants WHERE session_id = ? ORDER BY user_id ASC`,
+        [input.sessionId]
+      );
       await connection.commit();
-      return { session, changed: false, participantStates: [] as Array<{ userId: string; state: NearParticipantTransportState }> };
+      return {
+        session,
+        changed: false,
+        participantStates: terminalRows.map(raw => {
+          const row = raw as Row;
+          return { userId: String(row.userId), state: String(row.state) as NearParticipantTransportState };
+        })
+      };
     }
 
-    await ensureTransportParticipants(connection, input.sessionId, session.connectionId);
     await connection.execute(
       `UPDATE near_session_transport_participants
        SET state = ?, observed_at = ?, updated_at = CURRENT_TIMESTAMP(3)
@@ -158,7 +174,7 @@ export async function reportNearTransportState(input: {
 export async function getNearTransportState(userId: string, sessionId: string) {
   const connection = await pool.getConnection();
   try {
-    const session = await assertSessionParticipant(connection, userId, sessionId);
+    const session = await loadSessionParticipant(connection, userId, sessionId);
     await ensureTransportParticipants(connection, sessionId, session.connectionId);
     const [rows] = await connection.execute<RowDataPacket[]>(
       `SELECT user_id AS userId, state, observed_at AS observedAt, updated_at AS updatedAt
@@ -180,4 +196,19 @@ export async function getNearTransportState(userId: string, sessionId: string) {
   } finally {
     connection.release();
   }
+}
+
+export async function listActiveNearSessions(userId: string) {
+  const [rows] = await pool.execute<RowDataPacket[]>(
+    `SELECT ns.id, ns.connection_id AS connectionId, ns.level, ns.status,
+            ns.created_at AS createdAt, ns.connected_at AS connectedAt, ns.ended_at AS endedAt
+     FROM near_sessions ns
+     JOIN connection_participants cp ON cp.connection_id = ns.connection_id
+       AND cp.user_id = ? AND cp.membership_status = 'active'
+     WHERE ns.status IN ('authorized','connecting','connected')
+     ORDER BY ns.created_at DESC
+     LIMIT 20`,
+    [userId]
+  );
+  return rows.map(raw => mapSession(raw as Row));
 }
