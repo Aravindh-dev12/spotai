@@ -29,7 +29,7 @@ const iso = (value: unknown): string | null => {
 
 const canonicalPair = (a: string, b: string) => [a, b].sort().join(':');
 
-async function executeRows(executor: SqlExecutor, sql: string, values: unknown[] = []): Promise<Row[]> {
+async function executeRows(executor: SqlExecutor, sql: string, values: any[] = []): Promise<Row[]> {
   const [rows] = await executor.execute(sql, values);
   return rows as Row[];
 }
