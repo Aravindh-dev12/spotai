@@ -112,3 +112,4 @@ export function resolveForm(traits: TraitVector): FormArchetype | null {
 }
 
 export * from './presence.js';
+export * from './near-transport.js';
