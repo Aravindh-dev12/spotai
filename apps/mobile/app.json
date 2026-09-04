@@ -3,7 +3,17 @@
     "name": "SpotAI",
     "slug": "spotai",
     "scheme": "spotai",
-    "plugins": ["expo-router"],
+    "plugins": [
+      "expo-router",
+      "expo-dev-client",
+      [
+        "@config-plugins/react-native-webrtc",
+        {
+          "cameraPermission": "Allow SpotAI to use your camera only when you choose a camera or Shared Reality NEAR session.",
+          "microphonePermission": "Allow SpotAI to use your microphone only when you choose a voice, camera, or Shared Reality NEAR session."
+        }
+      ]
+    ],
     "experiments": { "typedRoutes": true }
   }
 }
