@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, RefreshControl, SafeAreaView, ScrollView, Text, TextInput, View } from 'react-native';
+import { useRouter } from 'expo-router';
 import {
   ApiError,
   createConnection,
@@ -12,8 +13,10 @@ import {
   type Connection,
   type DeclaredPresenceState,
   type NearInvite,
-  type NearLevel
+  type NearLevel,
+  type NearSession
 } from '../../lib/api';
+import { listActiveNearSessions } from '../../lib/near-active';
 
 const shell = { padding: 24, gap: 16 } as const;
 const card = { borderWidth: 1, borderColor: '#d8d8d8', borderRadius: 22, padding: 18, gap: 12 } as const;
@@ -37,8 +40,10 @@ function PresencePill({ state }: { state: string }) {
 }
 
 export default function NowScreen() {
+  const router = useRouter();
   const [connections, setConnections] = useState<Connection[]>([]);
   const [nearInvites, setNearInvites] = useState<NearInvite[]>([]);
+  const [activeSessions, setActiveSessions] = useState<NearSession[]>([]);
   const [otherUserId, setOtherUserId] = useState('');
   const [loading, setLoading] = useState(false);
   const [busyKey, setBusyKey] = useState<string | null>(null);
@@ -49,14 +54,24 @@ export default function NowScreen() {
     [connections]
   );
   const activeConnections = useMemo(() => connections.filter(item => item.status === 'active'), [connections]);
+  const sessionByConnection = useMemo(() => {
+    const map = new Map<string, NearSession>();
+    for (const session of activeSessions) if (!map.has(session.connectionId)) map.set(session.connectionId, session);
+    return map;
+  }, [activeSessions]);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const [connectionResult, inviteResult] = await Promise.all([listConnections(), listPendingNearInvites()]);
+      const [connectionResult, inviteResult, sessionResult] = await Promise.all([
+        listConnections(),
+        listPendingNearInvites(),
+        listActiveNearSessions()
+      ]);
       setConnections(connectionResult.connections);
       setNearInvites(inviteResult.invites);
+      setActiveSessions(sessionResult.sessions);
     } catch (nextError) {
       setError(errorMessage(nextError));
     } finally {
@@ -66,6 +81,10 @@ export default function NowScreen() {
 
   useEffect(() => { void load(); }, [load]);
 
+  function openSession(sessionId: string) {
+    router.push({ pathname: '/near/[id]', params: { id: sessionId } });
+  }
+
   async function run(key: string, action: () => Promise<unknown>) {
     setBusyKey(key);
     setError(null);
@@ -74,6 +93,21 @@ export default function NowScreen() {
       await load();
     } catch (nextError) {
       setError(errorMessage(nextError));
+    } finally {
+      setBusyKey(null);
+    }
+  }
+
+  async function acceptNear(invite: NearInvite) {
+    setBusyKey(`near:${invite.id}:accept`);
+    setError(null);
+    try {
+      const result = await respondToNearInvite(invite.id, 'accept');
+      if (!result.session?.id) throw new Error('near_session_missing');
+      openSession(result.session.id);
+    } catch (nextError) {
+      setError(errorMessage(nextError));
+      await load();
     } finally {
       setBusyKey(null);
     }
@@ -103,6 +137,14 @@ export default function NowScreen() {
       {error ? <View style={{ ...card, borderColor: '#b42318' }}>
         <Text style={{ color: '#b42318', fontWeight: '700' }}>Could not complete that action</Text>
         <Text style={{ color: '#b42318' }}>{error}</Text>
+      </View> : null}
+
+      {activeSessions.length ? <View style={{ ...card, borderColor: '#111' }}>
+        <Text style={{ fontSize: 20, fontWeight: '800' }}>Active NEAR</Text>
+        <Text style={{ opacity: 0.62 }}>An authorized or connected session is waiting. Media still starts only when you open it.</Text>
+        {activeSessions.slice(0, 3).map(session => <Pressable key={session.id} onPress={() => openSession(session.id)} style={primary}>
+          <Text style={{ color: '#fff', textAlign: 'center', fontWeight: '800' }}>Open {session.level.replace('_', ' ')} · {session.status}</Text>
+        </Pressable>)}
       </View> : null}
 
       <View style={card}>
@@ -141,9 +183,9 @@ export default function NowScreen() {
         <Text style={{ fontSize: 22, fontWeight: '800' }}>Come Near</Text>
         {nearInvites.map(invite => <View key={invite.id} style={card}>
           <Text style={{ fontSize: 19, fontWeight: '800' }}>{invite.inviterHandle ? `@${invite.inviterHandle}` : invite.inviterUserId.slice(0, 8)}</Text>
-          <Text style={{ opacity: 0.62 }}>Invited you to {invite.level.replace('_', ' ')}. Accepting authorizes the attempt; it does not turn on your camera or microphone by itself.</Text>
+          <Text style={{ opacity: 0.62 }}>Invited you to {invite.level.replace('_', ' ')}. Accepting authorizes the attempt; your OS permission prompt appears only when the NEAR session opens.</Text>
           <View style={{ flexDirection: 'row', gap: 10 }}>
-            <Pressable disabled={busyKey !== null} onPress={() => void run(`near:${invite.id}:accept`, () => respondToNearInvite(invite.id, 'accept'))} style={{ ...primary, flex: 1 }}>
+            <Pressable disabled={busyKey !== null} onPress={() => void acceptNear(invite)} style={{ ...primary, flex: 1 }}>
               <Text style={{ color: '#fff', textAlign: 'center', fontWeight: '800' }}>Come Near</Text>
             </Pressable>
             <Pressable disabled={busyKey !== null} onPress={() => void run(`near:${invite.id}:decline`, () => respondToNearInvite(invite.id, 'decline'))} style={{ ...secondary, flex: 1 }}>
@@ -157,13 +199,26 @@ export default function NowScreen() {
         <Text style={{ fontSize: 22, fontWeight: '800' }}>Your people</Text>
         {loading && !connections.length ? <ActivityIndicator /> : null}
         {!loading && !activeConnections.length ? <Text style={{ opacity: 0.58 }}>No active Connections yet. A Connection becomes active only after the other person accepts.</Text> : null}
-        {activeConnections.map(item => <ConnectionCard key={item.id} item={item} busy={busyKey !== null} run={run} />)}
+        {activeConnections.map(item => <ConnectionCard
+          key={item.id}
+          item={item}
+          session={sessionByConnection.get(item.id)}
+          busy={busyKey !== null}
+          run={run}
+          openSession={openSession}
+        />)}
       </View>
     </ScrollView>
   </SafeAreaView>;
 }
 
-function ConnectionCard({ item, busy, run }: { item: Connection; busy: boolean; run: (key: string, action: () => Promise<unknown>) => Promise<void> }) {
+function ConnectionCard({ item, session, busy, run, openSession }: {
+  item: Connection;
+  session?: NearSession;
+  busy: boolean;
+  run: (key: string, action: () => Promise<unknown>) => Promise<void>;
+  openSession: (sessionId: string) => void;
+}) {
   const [presenceState, setPresenceState] = useState<DeclaredPresenceState>('around');
   const [nearLevel, setNearLevel] = useState<NearLevel>('voice');
   const name = titleFor(item);
@@ -176,6 +231,10 @@ function ConnectionCard({ item, busy, run }: { item: Connection; busy: boolean; 
       </View>
       <PresencePill state={item.other.presence.state} />
     </View>
+
+    {session ? <Pressable onPress={() => openSession(session.id)} style={primary}>
+      <Text style={{ color: '#fff', textAlign: 'center', fontWeight: '800' }}>Resume {session.level.replace('_', ' ')} NEAR</Text>
+    </Pressable> : null}
 
     <Text style={{ fontWeight: '700' }}>Your presence with {name}</Text>
     <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
@@ -195,14 +254,14 @@ function ConnectionCard({ item, busy, run }: { item: Connection; busy: boolean; 
     <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
       {(['voice', 'camera', 'shared_reality'] as NearLevel[]).map(level => <Pressable
         key={level}
-        disabled={busy}
+        disabled={busy || Boolean(session)}
         onPress={() => setNearLevel(level)}
-        style={{ ...(nearLevel === level ? primary : secondary), paddingVertical: 10 }}
+        style={{ ...(nearLevel === level ? primary : secondary), paddingVertical: 10, opacity: session ? 0.45 : 1 }}
       ><Text style={{ color: nearLevel === level ? '#fff' : '#111', fontWeight: '700' }}>{level.replace('_', ' ').toUpperCase()}</Text></Pressable>)}
     </View>
-    <Pressable disabled={busy} onPress={() => void run(`near:${item.id}`, () => createNearInvite(item.id, nearLevel))} style={primary}>
-      <Text style={{ color: '#fff', textAlign: 'center', fontWeight: '800' }}>Invite {name}</Text>
+    <Pressable disabled={busy || Boolean(session)} onPress={() => void run(`near:${item.id}`, () => createNearInvite(item.id, nearLevel))} style={{ ...primary, opacity: session ? 0.45 : 1 }}>
+      <Text style={{ color: '#fff', textAlign: 'center', fontWeight: '800' }}>{session ? 'NEAR already active' : `Invite ${name}`}</Text>
     </Pressable>
-    <Text style={{ fontSize: 12, opacity: 0.52 }}>The other person must accept. Camera, microphone and Shared Reality remain bounded by permissions and the later transport handshake.</Text>
+    <Text style={{ fontSize: 12, opacity: 0.52 }}>The other person must accept. Camera, microphone and Shared Reality remain bounded by permissions and actual transport state.</Text>
   </View>;
 }
