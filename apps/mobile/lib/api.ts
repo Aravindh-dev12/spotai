@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Crypto from 'expo-crypto';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
 const TOKEN_KEY = 'spotai.sessionToken';
@@ -109,7 +110,7 @@ export async function listConnections() {
 export async function createConnection(otherUserId: string) {
   return request<{ id: string; status: ConnectionStatus; created: boolean; createdByUserId: string }>('/v1/connections', {
     method: 'POST',
-    body: JSON.stringify({ otherUserId, clientRequestId: crypto.randomUUID() })
+    body: JSON.stringify({ otherUserId, clientRequestId: Crypto.randomUUID() })
   });
 }
 
@@ -130,7 +131,7 @@ export async function setPresence(connectionId: string, state: DeclaredPresenceS
 export async function createNearInvite(connectionId: string, level: NearLevel) {
   return request<NearInvite & { reused: boolean }>(`/v1/connections/${encodeURIComponent(connectionId)}/near-invites`, {
     method: 'POST',
-    body: JSON.stringify({ clientRequestId: crypto.randomUUID(), level })
+    body: JSON.stringify({ clientRequestId: Crypto.randomUUID(), level })
   });
 }
 
@@ -147,6 +148,28 @@ export async function respondToNearInvite(inviteId: string, action: 'accept' | '
 
 export async function getNearSession(sessionId: string) {
   return request<NearSession>(`/v1/near-sessions/${encodeURIComponent(sessionId)}`);
+}
+
+export async function getNearTransport(sessionId: string) {
+  return request<NearTransportSnapshot>(`/v1/near-sessions/${encodeURIComponent(sessionId)}/transport`);
+}
+
+export async function reportNearTransport(sessionId: string, state: NearParticipantTransportState) {
+  return request<NearTransportReport>(`/v1/near-sessions/${encodeURIComponent(sessionId)}/transport`, {
+    method: 'POST',
+    body: JSON.stringify({ state, observedAt: new Date().toISOString() })
+  });
+}
+
+export async function sendNearSignal(sessionId: string, type: NearSignalType, payload: string) {
+  return request<{ accepted: boolean; duplicate: boolean; cursor?: string | null }>(`/v1/near-sessions/${encodeURIComponent(sessionId)}/signals`, {
+    method: 'POST',
+    body: JSON.stringify({ clientMessageId: Crypto.randomUUID(), type, payload })
+  });
+}
+
+export async function pollNearSignals(sessionId: string, after = '0-0') {
+  return request<NearSignalPoll>(`/v1/near-sessions/${encodeURIComponent(sessionId)}/signals?after=${encodeURIComponent(after)}`);
 }
 
 export async function listCrews() { return request<{ crews: Crew[] }>('/v1/crews'); }
@@ -192,6 +215,8 @@ export type DeclaredPresenceState = 'away' | 'around' | 'present';
 export type PresenceState = DeclaredPresenceState | 'near' | 'together';
 export type PresenceRepresentation = 'signal' | 'voice' | 'camera' | 'shared_reality';
 export type NearLevel = 'voice' | 'camera' | 'shared_reality';
+export type NearParticipantTransportState = 'idle' | 'connecting' | 'connected' | 'ended' | 'failed';
+export type NearSignalType = 'offer' | 'answer' | 'ice' | 'hangup';
 
 export interface Presence {
   state: PresenceState;
@@ -246,6 +271,39 @@ export interface NearSession {
   createdAt?: string | null;
   connectedAt?: string | null;
   endedAt?: string | null;
+}
+
+export interface NearTransportParticipant {
+  userId: string;
+  state: NearParticipantTransportState;
+  observedAt?: string | null;
+  updatedAt?: string | null;
+}
+
+export interface NearTransportSnapshot {
+  session: NearSession;
+  participants: NearTransportParticipant[];
+}
+
+export interface NearTransportReport {
+  session: NearSession;
+  changed: boolean;
+  previousStatus?: NearSession['status'];
+  participantStates: Array<{ userId: string; state: NearParticipantTransportState }>;
+}
+
+export interface NearSignalMessage {
+  cursor: string;
+  senderUserId: string;
+  clientMessageId: string;
+  type: NearSignalType;
+  payload: string;
+}
+
+export interface NearSignalPoll {
+  messages: NearSignalMessage[];
+  cursor: string;
+  closed: boolean;
 }
 
 export interface FormState {
