@@ -6,7 +6,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./features": "./src/features.ts",
-    "./presence": "./src/presence.ts"
+    "./presence": "./src/presence.ts",
+    "./transport": "./src/transport.ts"
   },
   "scripts": { "schema:print": "cat schema.sql", "typecheck": "tsc --noEmit -p tsconfig.json" },
   "dependencies": { "@form/domain": "workspace:*", "mysql2": "^3.14.0" },
