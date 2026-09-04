@@ -12,27 +12,30 @@ export default function Signup() {
 
   async function submit() {
     if (loading || !/^\d{4}-\d{2}-\d{2}$/.test(birthDate)) return;
-    setLoading(true); setError(null);
+    setLoading(true);
+    setError(null);
     try {
       await signUp({ handle: handle.trim() || undefined, birthDate });
       router.replace('/onboarding');
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not create account');
-    } finally { setLoading(false); }
+    } finally {
+      setLoading(false);
+    }
   }
 
-  return <SafeAreaView style={{ flex: 1, padding: 24 }}>
+  return <SafeAreaView style={{ flex: 1, padding: 24, backgroundColor: '#fff' }}>
     <View style={{ marginTop: 56, gap: 14 }}>
-      <Text style={{ letterSpacing: 2 }}>18+ ALPHA</Text>
-      <Text style={{ fontSize: 38, fontWeight: '700' }}>Start your life identity.</Text>
-      <Text style={{ opacity: 0.62, fontSize: 17 }}>Only moments you explicitly choose can affect your Form.</Text>
-      <TextInput value={handle} onChangeText={setHandle} autoCapitalize="none" placeholder="Handle (optional)" style={{ borderWidth: 1, borderRadius: 14, padding: 16, fontSize: 17 }} />
-      <TextInput value={birthDate} onChangeText={setBirthDate} keyboardType="numbers-and-punctuation" placeholder="Birth date · YYYY-MM-DD" style={{ borderWidth: 1, borderRadius: 14, padding: 16, fontSize: 17 }} />
-      <Text style={{ opacity: 0.55 }}>We use birth date only for the adult launch gate in this alpha.</Text>
-      {error ? <Text>{error}</Text> : null}
+      <Text style={{ letterSpacing: 2, fontWeight: '700' }}>18+ ALPHA</Text>
+      <Text style={{ fontSize: 40, lineHeight: 44, fontWeight: '800' }}>Create your person identity.</Text>
+      <Text style={{ opacity: 0.62, fontSize: 17, lineHeight: 24 }}>Your account is a real person. Relationships only become active when the other person accepts.</Text>
+      <TextInput value={handle} onChangeText={setHandle} autoCapitalize="none" autoCorrect={false} placeholder="Handle (optional)" style={{ borderWidth: 1, borderColor: '#d4d4d4', borderRadius: 14, padding: 16, fontSize: 17 }} />
+      <TextInput value={birthDate} onChangeText={setBirthDate} keyboardType="numbers-and-punctuation" placeholder="Birth date · YYYY-MM-DD" style={{ borderWidth: 1, borderColor: '#d4d4d4', borderRadius: 14, padding: 16, fontSize: 17 }} />
+      <Text style={{ opacity: 0.55 }}>Birth date is used for the adult launch gate in this alpha.</Text>
+      {error ? <Text style={{ color: '#b42318' }}>{error}</Text> : null}
     </View>
-    <Pressable onPress={submit} disabled={loading || !/^\d{4}-\d{2}-\d{2}$/.test(birthDate)} style={{ marginTop: 'auto', marginBottom: 24, borderWidth: 1, borderRadius: 16, padding: 18 }}>
-      {loading ? <ActivityIndicator /> : <Text style={{ textAlign: 'center', fontSize: 18 }}>Continue</Text>}
+    <Pressable onPress={() => void submit()} disabled={loading || !/^\d{4}-\d{2}-\d{2}$/.test(birthDate)} style={{ marginTop: 'auto', marginBottom: 24, borderRadius: 999, padding: 18, backgroundColor: '#111', opacity: loading || !/^\d{4}-\d{2}-\d{2}$/.test(birthDate) ? 0.4 : 1 }}>
+      {loading ? <ActivityIndicator color="#fff" /> : <Text style={{ textAlign: 'center', fontSize: 18, color: '#fff', fontWeight: '800' }}>Continue</Text>}
     </Pressable>
   </SafeAreaView>;
 }
