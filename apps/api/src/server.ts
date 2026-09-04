@@ -34,6 +34,7 @@ import {
 import { appendDomainEvent, trackEvent } from '@form/db/features';
 import { registerMvpRoutes, authenticatedUserId, closeMvpInfrastructure } from './routes/mvp.js';
 import { registerNearRoutes } from './routes/near.js';
+import { registerTransportRoutes } from './routes/transport.js';
 import { registerProductionShell } from './production.js';
 
 const config = loadConfig();
@@ -249,6 +250,7 @@ app.post('/v1/life-signals/preview', async (request, reply) => {
 
 await registerMvpRoutes(app);
 await registerNearRoutes(app);
+await registerTransportRoutes(app);
 
 app.setErrorHandler((error, request, reply) => {
   request.log.error({ error, requestId: request.id }, 'request failed');
