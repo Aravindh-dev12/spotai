@@ -118,9 +118,16 @@ export async function registerNearRoutes(app: FastifyInstance) {
     if (!params.success) return reply.code(400).send({ error: 'invalid_connection' });
     const parsed = presenceUpdateSchema.safeParse(request.body);
     if (!parsed.success) return reply.code(400).send({ error: 'invalid_presence', details: parsed.error.flatten() });
-    if (parsed.data.state === 'near' || parsed.data.state === 'together') return reply.code(409).send({ error: 'mutual_near_required' });
+    const state = parsed.data.state;
+    if (state === 'near' || state === 'together') return reply.code(409).send({ error: 'mutual_near_required' });
     try {
-      const presence = await setDeclaredPresence({ userId, connectionId: params.data.id, ...parsed.data });
+      const presence = await setDeclaredPresence({
+        userId,
+        connectionId: params.data.id,
+        state,
+        representation: parsed.data.representation,
+        ttlSeconds: parsed.data.ttlSeconds
+      });
       await appendDomainEvent(userId, presence.state === 'away' ? 'presence.ended' : 'presence.updated', 'connection', params.data.id, {
         state: presence.state,
         representation: presence.representation,
