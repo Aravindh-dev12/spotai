@@ -6,6 +6,7 @@ import { getNearTransportState, reportNearTransportState } from '@form/db/transp
 import { appendDomainEvent, trackEvent } from '@form/db/features';
 import { authenticatedUserId } from './mvp.js';
 import { registerSignalingRoutes } from './signaling.js';
+import { registerIceRoutes } from './ice.js';
 
 const paramsSchema = z.object({ id: z.string().uuid() });
 
@@ -16,7 +17,9 @@ function sendTransportError(error: unknown, reply: FastifyReply) {
 }
 
 export async function registerTransportRoutes(app: FastifyInstance) {
-  await registerSignalingRoutes(app, loadConfig());
+  const config = loadConfig();
+  await registerSignalingRoutes(app, config);
+  await registerIceRoutes(app, config);
 
   app.get('/v1/near-sessions/:id/transport', async (request, reply) => {
     const userId = await authenticatedUserId(request);
