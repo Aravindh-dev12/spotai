@@ -110,3 +110,5 @@ export function resolveForm(traits: TraitVector): FormArchetype | null {
   }
   return winner;
 }
+
+export * from './presence.js';

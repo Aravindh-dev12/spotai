@@ -5,7 +5,8 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./features": "./src/features.ts"
+    "./features": "./src/features.ts",
+    "./presence": "./src/presence.ts"
   },
   "scripts": { "schema:print": "cat schema.sql", "typecheck": "tsc --noEmit -p tsconfig.json" },
   "dependencies": { "@form/domain": "workspace:*", "mysql2": "^3.14.0" },

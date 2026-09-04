@@ -1,252 +1,323 @@
-# SpotAI / Form Repository Skill Guide
+# SpotAI Repository Skill Guide — Living Social / NEAR
 
 ## Purpose
 
-This repository builds a **Life Identity Network** around one promise:
+`SpotAI` is a working codename for a **presence-based social network**.
 
-> **You don't choose your character. Your life creates it.**
+The product thesis is:
 
-`SpotAI` is a working codename. `Form` is the durable product object, not necessarily the final company/app name.
+> Traditional social networks connect people to people's content. We are building technology that helps people feel socially present with each other.
+
+The primary durable object is the **relationship**, not the post, feed, game, World, avatar, or AI assistant.
+
+The emotional objective is **NEAR**:
+
+> Reduce perceived digital distance between real humans while preserving consent and boundaries.
 
 ## Production mandate
 
-This repository is not a disposable prototype. Product experiments may be narrow, but engineering should be production-oriented so validated experiences can be promoted instead of rewritten.
+This repository is not disposable prototyping. Experiments may be narrow, but validated experiences must be promotable without a rewrite.
 
-Production-oriented means:
+Production-oriented engineering requires:
 
-- validated runtime configuration,
-- secure startup and secret handling,
-- explicit authorization boundaries,
+- validated runtime configuration and secure secret handling,
+- real authentication and authorization boundaries,
 - rate limiting and abuse controls,
-- deterministic and versioned identity logic,
-- bounded AI provider adapters,
-- durable database state,
-- reliable asynchronous jobs,
-- explicit media consent,
-- health/readiness checks,
+- durable MySQL source-of-truth state,
+- Redis/BullMQ only for coordination and jobs,
+- idempotent/retry-safe writes where retries are realistic,
+- explicit media/presence/recording consent,
+- health and readiness checks,
 - graceful shutdown,
 - observability and testability,
-- idempotent/retry-safe writes where required,
-- production mobile performance budgets.
+- privacy and deletion/revocation design,
+- mobile latency/battery/network budgets.
 
-Do not label unfinished code “production-ready” merely because infrastructure exists. Each user-facing path must still pass correctness, safety, performance, privacy and operational validation.
+Never describe unfinished code as production-ready merely because infrastructure exists.
 
 ## Product hierarchy
 
-Preserve this hierarchy in code, UX and architecture:
+Preserve this hierarchy in new code and UX:
 
-1. **Life** — what the user wants and which real moments they choose to count.
-2. **Form** — persistent identity derived from that evidence.
-3. **Crew** — persistent small-group relationship identity.
-4. **Season** — recurring evolution period.
-5. **Memory** — visualized history of real approved experiences.
-6. **World** — temporary experiential context entered by an existing Form.
+1. **Person** — a real human account.
+2. **Connection / US** — a persistent relationship between two people.
+3. **Crew** — a persistent small-group relationship with history that belongs to the group.
+4. **Presence** — a user-controlled realtime declaration of availability/social distance.
+5. **NEAR** — a mutually accepted attempt to reduce social distance through voice/camera/Shared Reality.
+6. **Place** — persistent spatial expression of a Connection or Crew, accumulated from authentic shared history.
+7. **Moment** — evidence of a real shared experience.
+8. **Memory** — durable, permissioned relationship/group history.
+9. **Gathering** — temporary multi-person social presence with fluid conversational topology.
+10. **Circle** — one-to-many creator/community relationship with explicit access levels.
+11. **Window** — discovery into a live or warm social situation, not an infinite content feed.
 
-> **Worlds end. Your Form remembers.**
+Underlying technology:
+
+- **Presence Engine** — who is here and at what user-controlled distance.
+- **Space Engine** — coherent spatial interpretation across devices.
+- **Relationship Engine** — membership, permissions, ownership, boundaries and persistence.
+- **Memory Engine** — authentic mutually permitted history.
+- **AI Director** — bounded perception/semantic assistance; humans remain foreground.
 
 ## Core loop
 
-`WANT → LIVE → AWAKEN → SHARE → CREW → EVOLVE → NEXT SEASON`
+The primary social loop is:
 
-Every significant feature should strengthen at least one stage without weakening explainability, consent or persistent identity.
+`SEE WHO IS HERE → COME NEAR → EXPERIENCE TOGETHER → LEAVE A TRACE → RETURN TO THE RELATIONSHIP`
 
-## Non-negotiable product rules
+Discovery later extends the loop:
 
-### Real life first
+`WINDOW → GATHERING → ENCOUNTER → CONNECTION/CREW → NEAR → SHARED HISTORY`
 
-AI can interpret and visualize real user-approved evidence. Do not fabricate fake life activity and count it as evidence. Do not infer personality from a face.
+A feature should strengthen this loop without turning the product into a feed, game, or generic AI wrapper.
 
-### User-controlled evidence
+## Social-distance model
 
-The user decides which moments count. They must be able to inspect why a Form changed and remove evidence where supported.
+Presence is not an inferred intimacy score. It is user-controlled realtime state:
 
-### Deterministic identity
+`AWAY → AROUND → PRESENT → NEAR → TOGETHER`
 
-AI classification is structured input. Versioned deterministic rules apply Trait changes and resolve Form identity. AI must never be final authority for archetype, level, payment, consent, authorization or Crew membership.
+Important rules:
 
-### Persistent Form
+- `AWAY`, `AROUND`, and `PRESENT` may be declared unilaterally according to permissions.
+- `NEAR` and `TOGETHER` require mutual interaction/session state.
+- AI must never infer or publish a friendship/intimacy/romantic compatibility score.
+- Presence must expire automatically unless deliberately renewed.
+- Users need an equally easy way to restore distance as to reduce it.
 
-A Form must remain recognizable across camera activation, Blender manifestations, Memories, Crew experiences, Seasons and Worlds. Do not generate a disconnected avatar for every interaction.
+## NEAR protocol
 
-### Crew before public graph
+Internally, NEAR answers:
 
-Initial Crew size is roughly 2–5. Do not add an Instagram-style public feed, open DMs or creator economy before the core identity/social loop has retention.
+1. Who is here?
+2. Where are they socially/spatially?
+3. Who is near whom?
+4. What are people jointly attending to?
+5. What are they experiencing together?
+6. What is permitted to survive after they leave?
 
-### Worlds amplify; they do not create the product
+An accepted `COME NEAR` invitation authorizes an attempt. Do not mark camera/Shared Reality as connected until realtime media transport actually establishes it.
 
-The product must work without entertainment/IP partnerships. A user enters every World with their existing Form.
+## Shared Reality
 
-### Payment upgrades expression
+The goal is not a better video-call grid.
 
-Keep core participation broadly accessible. Monetize premium cinematics, manifestations, Memories, finales and later World/Season expression. Do not use randomized loot boxes.
+The phone camera is treated as a **presence sensor** and rendering source. Over time the system may use:
 
-### Privacy is architecture
+- person segmentation,
+- body/hand pose,
+- rough depth and surfaces,
+- stable body scale,
+- spatial voice placement,
+- shared objects and coordinates,
+- gaze/attention cues where reliable and consented,
+- synchronized haptics,
+- cross-modal coherence.
 
-Do not require continuous background location, contact uploads, always-on microphone, unrestricted photo scanning or hidden health access. Use explicit scoped permissions.
+Prioritize social fidelity over pixel fidelity:
 
-### 18+ first
+`correct timing + scale + position + voice origin + shared attention + body continuity`
 
-Initial production rollout remains adult-first while consent, moderation, generated-media and relationship safety are proven.
+before expensive photorealistic room reconstruction.
 
-## Production runtime rules
+Do not make Gaussian splatting, full 3D reconstruction, headset hardware, or neural avatars a V1 dependency.
 
-Production must fail closed when required configuration is invalid.
+## Relationship consent and permissions
 
-- `@form/config` owns runtime validation.
-- Production cannot boot with `AI_PROVIDER=stub`.
-- Approved web origins must be explicitly configured in production.
-- Secrets and authorization headers must be redacted from logs.
-- API traffic must pass security-header, CORS and rate-limit controls.
-- `/health/live` indicates process liveness; `/health/ready` checks MySQL + Redis readiness.
-- SIGTERM/SIGINT must trigger graceful shutdown of API, queue/Redis infrastructure and DB pool.
-- Development-only preview/user endpoints remain inaccessible in production.
+A Connection must be accepted by the other participant before becoming active.
 
-## 3D / Blender rules
+Per-participant relationship permissions include at minimum:
 
-Blender is an **offline authoring tool**, never identity authority.
+- presence visibility,
+- voice,
+- camera,
+- Shared Reality,
+- AI memory,
+- private Moments,
+- mature themes,
+- sensitive media,
+- recording policy.
 
-Pipeline:
+Defaults must keep AI memory, mature themes and sensitive media off. Recording must never silently start; support `never` or explicit per-session consent.
 
-```text
-canonical Form state
-  → reviewed FormAssetManifest
-  → Blender-authored GLB
-  → mobile renderer
-```
+Blocking, revocation and safety must override relationship persistence.
 
-Use the standardized `FORM_RIG` and semantic animation action names documented in `docs/BLENDER_FORM_PIPELINE.md`.
+## Shared memory ownership
 
-Do not ship archetype-specific logic inside random animation code. Map semantic actions such as `open_palm` or `hands_together` through reviewed manifests.
+The semantic owner of a Memory may be `US` or a Crew, but safety rights remain individual.
 
-Start with `VECTOR I`. Do not build every Form before one manifestation is excellent and performant.
+Do not implement “both people must approve deletion forever.” Use:
 
-## O rules
+- semantic relationship ownership,
+- contribution ownership,
+- participant visibility,
+- participant revocation,
+- group retention rules,
+- safety/legal override.
 
-`O` is a separate intelligence/guide/world character:
+AI can dramatize/reconstruct presentation of authentic approved history. It must not fabricate shared history and present it as real.
 
-```text
-FORM = USER IDENTITY
-O    = INTELLIGENCE / WORLD CHARACTER
-```
+## Groups
 
-O may communicate through an alien mathematical visual language and bounded AI dialogue. O never decides canonical Form state.
+Crew and Gathering are not “video calls with more tiles.”
 
-The procedural O generator is an engineering placeholder, not production art.
+Group architecture should eventually model:
 
-## World Runtime rules
+- stable social position,
+- proximity-dependent media fidelity,
+- conversational clusters,
+- shared attention,
+- arrival/departure,
+- temporary Focus,
+- perspective-specific Afterglow,
+- group-owned Memories/objects,
+- conversion from temporary encounter to persistent Connection/Crew.
 
-`@form/world-runtime` owns deterministic realtime experience behavior:
+Never default to a 30-person camera grid.
 
-```text
-camera pose landmarks
-  → gesture detection
-  → semantic body action
-  → Form animation/ability
-  → deterministic World reducer
-  → completion event
-```
+For large groups, bandwidth should follow social distance: far participants are abstract/low-bandwidth; active nearby conversations receive rich media.
 
-The first allowed realtime World is the bounded original `SIGNAL_ZERO` vertical slice. World completion can create durable history/Memory/World outcomes according to rules, but must not directly rewrite Trait Vectors or Form archetypes.
+## Creator / Circle direction
+
+Circle is a later one-to-many relationship object.
+
+The monetization primitive is **defined access + presence + shared experience**, not merely paywalled files.
+
+Creators may have public/member/near/private access tiers, but boundaries must be explicit. AI-generated or AI-personalized creator media must be clearly identified and authorized. Never fabricate personal affection or pretend a creator personally performed an AI-generated interaction.
+
+Mature adult expression may exist only within law/platform/payment/safety constraints and must not define the mainstream network.
+
+## Window / discovery direction
+
+Do not build an Instagram/TikTok feed.
+
+A Window should answer:
+
+> Where is socially meaningful human activity happening?
+
+rather than:
+
+> What video should I watch next?
+
+Discovery should recommend social possibilities using allowed signals such as existing relationships, friend-of-friend paths, declared interests, trusted communities, Circles and active Gatherings. Avoid inferred sensitive traits and manipulative intimacy optimization.
 
 ## AI boundaries
 
-AI may be used for:
+AI may help with:
 
-- onboarding language interpretation,
-- Life Signal classification,
-- safe contextual suggestions,
-- recap narration,
-- creative image/video rendering,
-- concept/texture/animation ideation,
-- bounded World adaptation,
-- bounded O/NPC dialogue later.
-
-The real provider adapter must use bounded timeouts/retries and validate structured output before returning it to product logic.
+- on-device human/environment perception,
+- segmentation/depth/pose/gesture interpretation,
+- spatial composition,
+- shared-object reference,
+- language translation,
+- semantic retrieval of approved Memories,
+- optional recaps,
+- bounded social suggestions/introductions,
+- creative environment construction from authentic history,
+- trust/safety assistance under policy controls.
 
 AI must not be final authority for:
 
-- Trait mutation,
-- Form archetype/level,
-- entitlement/payment,
-- consent,
+- relationship meaning,
 - relationship membership,
-- authorization,
-- deterministic World completion,
-- irreversible moderation without policy controls.
+- consent,
+- presence permission,
+- recording permission,
+- mature/sensitive-media permission,
+- entitlement/payment,
+- irreversible moderation,
+- claims about a user's emotions, attraction, mental health or sensitive identity.
 
-## Core vocabulary
+Realtime social direction should primarily use deterministic participant/media/permission/network state. Do not run an LLM continuously as the realtime social director.
 
-Use these terms consistently:
+## Data architecture
 
-- `LifeMode`
-- `LifeSignal`
-- `Evidence`
-- `TraitVector`
-- `Form`
-- `FormManifestation`
-- `FormEvolution`
-- `Crew`
-- `CrewIdentity`
-- `Season`
-- `Memory`
-- `World`
-- `WorldMission`
-- `WorldMark`
-- `WorldPulse`
-- `Entitlement`
-- `FormAssetManifest`
+Use a relational source of truth. Do not introduce Neo4j prematurely.
 
-## Architecture boundaries
+Canonical state belongs in MySQL:
 
-Keep modules separated for runtime config, identity/auth, Life Mode, evidence, deterministic traits, Form, Crew, Season, media/creative rendering, World runtime, payments/entitlements, trust/safety, notifications and analytics.
+- users,
+- Connections and participants,
+- relationship permissions,
+- current/expiring presence,
+- NEAR invitations/sessions,
+- Crews,
+- Moments/Memories,
+- Places,
+- later Gatherings/Circles.
 
-Prefer a modular monolith plus asynchronous jobs until operational scale justifies service extraction.
+Persist meaningful domain events for auditability and product learning.
 
-Canonical durable state belongs in MySQL. Redis/BullMQ coordinate asynchronous work but are not the source of truth.
+Near-term events include:
 
-## Event/history rule
-
-Identity history is part of the product moat. Persist enough information to reconstruct meaningful progression: rule version, confidence, reasons, previous/resulting Trait Vectors and durable domain events.
-
-Examples include `life_mode_started`, `life_signal_recorded`, `trait_vector_changed`, `form_awakened`, `form_evolved`, `crew_joined`, `memory_created`, `world_entered`, `world_completed`, `world_mark_earned`, `season_completed`.
+- `connection.requested`
+- `connection.accepted`
+- `connection.declined`
+- `connection.blocked`
+- `connection.permission_changed`
+- `presence.updated`
+- `presence.ended`
+- `near.invited`
+- `near.accepted`
+- `near.declined`
+- `near.session_authorized`
+- later `near.connected` / `near.ended`
+- `moment.created`
+- `memory.saved`
+- `memory.removed`
 
 ## Current build order
 
-1. Verify build/tests and authorization.
-2. Production config/security/readiness/graceful shutdown.
-3. Durable account recovery/identity provider integration.
-4. Write idempotency and retry safety.
-5. Life Mode → Life Signal → Awakening.
-6. Explainable persistent Form.
-7. One excellent `VECTOR I` reveal.
-8. Crew invitation/formation/progress.
-9. Blender `VECTOR I` production manifestation.
-10. Live pose tracking + `SIGNAL_ZERO` runtime.
-11. Completion → short Memory/reveal → share.
-12. Season recap and next-Season retention.
-13. Push notifications and lifecycle messaging.
-14. Payments/receipt verification for premium expression.
-15. Moderation, account deletion and privacy operations.
-16. Production observability/deployment and integration/e2e testing.
-17. Only after retention: broader original/place/campus/creator Worlds.
-18. Major licensed Worlds much later.
+1. Verify build/typecheck/tests/CI and keep production runtime guardrails intact.
+2. Durable Connection/US request + acceptance + membership authorization.
+3. Per-participant relationship permissions and revocation-safe boundaries.
+4. Expiring declared Presence (`away/around/present`).
+5. Idempotent `COME NEAR` invitation + mutual acceptance + durable NearSession authorization.
+6. Refactor mobile home from Form-centric UI to **NOW / people / presence**.
+7. Realtime media signaling and transport for two people; never mark media connected before transport confirms it.
+8. Spatial audio + adaptive bitrate + latency instrumentation.
+9. Same-frame segmented composition with stable scale as the first Shared Reality experiment.
+10. One shared object/reference interaction.
+11. One synchronized gesture/haptic experiment.
+12. Measure perceived co-presence, repeat pair sessions and comfortable silence against normal video calling.
+13. Persistent Connection Place + opt-in Presence residue.
+14. Moment/Memory relationship ownership and revocation.
+15. Crew 3–6 person presence, group-owned history and natural clusters.
+16. Gathering after small-group NEAR is proven.
+17. Circle/creator access after core relationship retention.
+18. Window/Social Gravity only after enough live social density exists.
+19. Hybrid physical/remote and glasses/spatial-device surfaces later.
 
-## Explicitly deferred
+## Explicitly deferred / legacy
 
-Do not expand early into Food, Health coaching, public feeds, open DMs, creator marketplace, large AR multiplayer, broad recommendation engines or major IP tooling.
+The existing Life Mode, Trait, Form, Season, Blender manifestation and World Runtime code is legacy/non-priority while the product pivots to Living Social. Do not delete it casually; migrate or retire it deliberately after the NEAR foundation proves itself.
+
+Do not continue early investment in:
+
+- gameplay, quests, points or levels,
+- body-action gameplay,
+- broad Worlds/metaverse content,
+- generic public feeds/Reels clones,
+- open random stranger camera,
+- food/health super-app expansion,
+- creator marketplaces before relationship retention,
+- mass recommendation infrastructure before social density.
+
+`Form` may later survive as visual expression of a person across relationships, but it is not the primary product object.
 
 ## Build test
 
 Before implementing a feature ask:
 
-1. Which core-loop stage does this improve?
-2. Does it strengthen persistent identity?
-3. Can the user understand why canonical identity changed?
-4. Does it collect only necessary data?
-5. Can it be validated more simply?
-6. Is AI being used as a capability rather than authority?
-7. Is Blender/3D being used as manifestation rather than identity logic?
-8. Is this safe to operate under production traffic and retries?
-9. Are failure, shutdown, privacy and abuse cases defined?
+1. Does this reduce social distance or improve relationship continuity?
+2. Does it preserve user control and an easy Boundary/exit?
+3. Is mutual consent required where intimacy increases?
+4. Does durable state belong to the correct Person/US/Crew aggregate?
+5. Is AI capability rather than authority?
+6. Are retries/idempotency/authorization defined?
+7. Does the state honestly reflect what the realtime system has actually established?
+8. Can it work under mobile latency, battery and bandwidth constraints?
+9. Can we measure whether people feel more present and return to the same relationship?
+10. Are privacy, blocking, revocation and abuse cases designed before scale?
 
-See `APP_ARCHITECTURE.md`, `docs/PHASE_1_MVP.md`, `docs/API_CONTRACT.md` and `docs/BLENDER_FORM_PIPELINE.md`.
+See `docs/NEAR_FOUNDATION.md` for the current implementation slice. Existing legacy architecture documents remain useful for infrastructure/history but are not authoritative for new product direction where they conflict with this guide.
